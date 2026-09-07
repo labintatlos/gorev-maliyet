@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Görev Maliyet Hesaplayıcı</title>
+  <!-- Telegram Web App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-icon">⚓</div>
+      <div class="header-content">
+        <h1>Görev Maliyet Hesaplayıcı</h1>
+        <p class="subtitle">Avara, aborda, yakıt ve personel bilgilerini girin</p>
+      </div>
+    </header>
+
+    <!-- Quick Presets -->
+    <section class="section quick-actions">
+      <div class="quick-chips">
+        <button type="button" class="chip" id="btn-last-calc">↩️ Son Görevi Yükle</button>
+        <button type="button" class="chip" id="btn-sample-calc">🧪 Örnek Değerler</button>
+        <button type="button" class="chip" id="btn-now-calc">⚡ Şu Anki Saat</button>
+      </div>
+    </section>
+
+    <!-- Main Form -->
+    <form id="calc-form" onsubmit="return false;">
+      
+      <!-- Date & Fuel Type Row -->
+      <section class="section card">
+        <div class="section-title">📅 Görev Tarihi ve Yakıt Türü</div>
+        
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="duty-date">Görev Tarihi</label>
+            <input type="date" id="duty-date" class="form-control">
+          </div>
+          <div class="form-group flex-1">
+            <label>Yakıt Türü</label>
+            <div class="segmented-control">
+              <input type="radio" id="fuel-diesel" name="fuel_type" value="diesel" checked>
+              <label for="fuel-diesel">🛢 Dizel</label>
+              
+              <input type="radio" id="fuel-gasoline" name="fuel_type" value="gasoline">
+              <label for="fuel-gasoline">⛽ Benzin</label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Personnel (Global) -->
+      <section class="section card">
+        <div class="section-title">👥 Personel</div>
+        <div class="stepper-row">
+          <div class="stepper-label">
+            <strong>Personel Sayısı</strong>
+            <small>Görevdeki toplam kişi</small>
+          </div>
+          <div class="stepper-control">
+            <button type="button" class="step-btn" onclick="adjustPersonnel(-1)">−</button>
+            <input type="number" id="personnel" class="step-input" value="4" min="1" max="50">
+            <button type="button" class="step-btn" onclick="adjustPersonnel(1)">+</button>
+          </div>
+        </div>
+        <div class="quick-nums">
+          <button type="button" class="quick-num-btn" onclick="setPersonnel(2)">2 Kişi</button>
+          <button type="button" class="quick-num-btn" onclick="setPersonnel(4)">4 Kişi</button>
+          <button type="button" class="quick-num-btn" onclick="setPersonnel(6)">6 Kişi</button>
+          <button type="button" class="quick-num-btn" onclick="setPersonnel(8)">8 Kişi</button>
+        </div>
+      </section>
+
+      <!-- Dynamic Duties Container -->
+      <div id="duties-container" style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- Dynamic duty cards will be rendered here by app.js -->
+      </div>
+
+      <!-- Add New Duty Button -->
+      <button type="button" id="btn-add-duty" class="btn-add-duty">
+        <span>➕ Yeni Görev Ekle</span>
+      </button>
+
+      <!-- Submit Button (Fallback for non-telegram browser or desktop) -->
+      <div class="submit-container">
+        <button type="button" id="btn-submit" class="btn-primary">
+          <span>✅ Görevleri Hesapla ve Gönder</span>
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+  <script src="app.js?v=6"></script>
+</body>
+</html>

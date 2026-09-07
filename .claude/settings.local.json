@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git init)",
+      "PowerShell(git config --global user.email \"aykutcemc@gmail.com\")",
+      "PowerShell(git config --global user.name \"Aykut\")",
+      "PowerShell(git add .)"
+    ]
+  }
+}
