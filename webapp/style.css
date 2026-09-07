@@ -487,3 +487,140 @@ body {
   background: rgba(36, 129, 204, 0.08);
 }
 
+/* Animasyonlar */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.form-group,
+.section,
+.card {
+  animation: slideInUp 0.3s ease-out;
+}
+
+/* Toplam Maliyet Özeti Kartı */
+.cost-summary {
+  background: linear-gradient(135deg, var(--btn-color), rgba(36, 129, 204, 0.8));
+  color: white;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  margin: 8px 0;
+  box-shadow: 0 4px 12px rgba(36, 129, 204, 0.25);
+  animation: slideInUp 0.4s ease-out;
+}
+
+.cost-summary h3 {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.cost-summary .total-amount {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.cost-summary .cost-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cost-breakdown-item {
+  text-align: center;
+  font-size: 12px;
+}
+
+.cost-breakdown-item .label {
+  opacity: 0.8;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.cost-breakdown-item .value {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.cost-breakdown-item .percentage {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* Paylaş Butonu */
+.share-button {
+  background: var(--secondary-bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--card-border);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.share-button:active {
+  background: rgba(36, 129, 204, 0.1);
+  transform: scale(0.97);
+}
+
+/* İnternet Durumu Göstergesi */
+#offline-indicator {
+  animation: slideInUp 0.3s ease-out;
+}
+
+#sync-status {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Smooth form transitions */
+input, select, textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--btn-color);
+  box-shadow: 0 0 0 2px rgba(36, 129, 204, 0.1);
+}
+
+/* Button hover effects */
+.btn-primary:hover,
+.btn-primary:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(36, 129, 204, 0.25);
+}
+
+/* Form group transitions */
+.form-group {
+  transition: all 0.15s ease;
+}
+

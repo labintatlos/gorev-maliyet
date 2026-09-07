@@ -132,6 +132,7 @@ function updateDutyTime(id, field, value) {
       durElem.textContent = formatDurationText(d.departure, d.arrival);
     }
     savePreferences();
+    updateCostSummary();
   }
 }
 
@@ -144,6 +145,7 @@ function updateDutyFuel(id, value) {
       kgElem.textContent = getFuelKgText(value);
     }
     savePreferences();
+    updateCostSummary();
   }
 }
 
@@ -279,6 +281,8 @@ function renderDuties() {
       </section>
     `;
   }).join('');
+
+  updateCostSummary();
 }
 
 // Save form values to localStorage
@@ -504,3 +508,103 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSubmit.addEventListener('click', submitData);
   }
 });
+
+// Toplam maliyet özeti kartını güncelle
+function updateCostSummary() {
+  const container = document.getElementById('cost-summary-container');
+  if (!container || duties.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  // Toplam hesapla
+  let totalMinutes = 0;
+  let totalFuel = 0;
+
+  duties.forEach(duty => {
+    const mins = getDurationMinutes(duty.departure, duty.arrival);
+    totalMinutes += mins;
+    totalFuel += parseFloat(duty.fuel_liters) || 0;
+  });
+
+  const totalHours = (totalMinutes / 60).toFixed(2);
+  const estimatedCost = Math.round(totalHours * 2500); // Tahmini ortalama ₺2500/saat
+  const fuelPerHour = (totalFuel / totalHours).toFixed(2);
+
+  const hoursStr = Math.floor(totalMinutes / 60);
+  const minsStr = String(totalMinutes % 60).padStart(2, '0');
+
+  container.innerHTML = `
+    <div class="cost-summary">
+      <h3>📊 Görev Özeti</h3>
+      <div class="total-amount">~₺${formatNumber(estimatedCost)}</div>
+      <div class="cost-breakdown">
+        <div class="cost-breakdown-item">
+          <span class="label">Toplam Süre</span>
+          <span class="value">${hoursStr}:${minsStr}</span>
+        </div>
+        <div class="cost-breakdown-item">
+          <span class="label">Yakıt Toplam</span>
+          <span class="value">${formatNumber(totalFuel)}L</span>
+        </div>
+        <div class="cost-breakdown-item">
+          <span class="label">Verimlilik</span>
+          <span class="value">${fuelPerHour}L/sa</span>
+        </div>
+      </div>
+      <button type="button" class="share-button" onclick="copySummary()">
+        📋 Özeti Kopyala
+      </button>
+    </div>
+  `;
+
+  container.style.display = 'block';
+}
+
+// Özeti panoya kopyala
+function copySummary() {
+  const summary = [];
+  const personnel = parseInt(document.getElementById('personnel').value, 10) || 4;
+  const dutyDate = document.getElementById('duty-date').value || getTodayString();
+  const fuel_type = document.querySelector('input[name="fuel_type"]:checked')?.value || 'diesel';
+
+  summary.push(`📋 Görev Özeti`);
+  summary.push(`📅 Tarih: ${dutyDate}`);
+  summary.push(`👥 Personel: ${personnel}`);
+  summary.push(`🛢 Yakıt: ${fuel_type === 'gasoline' ? 'Benzin' : 'Dizel'}`);
+  summary.push('');
+
+  duties.forEach((duty, idx) => {
+    const mins = getDurationMinutes(duty.departure, duty.arrival);
+    const hours = (mins / 60).toFixed(2);
+    const fuel = parseFloat(duty.fuel_liters) || 0;
+    const fuelPerHour = (fuel / hours).toFixed(2);
+    summary.push(`Görev ${idx + 1}:`);
+    summary.push(`  ⏱ ${duty.departure} - ${duty.arrival} (${hours} saat)`);
+    summary.push(`  ⛽ ${fuel}L (~${fuelPerHour}L/saat)`);
+  });
+
+  const text = summary.join('\n');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      haptic('success');
+      if (tg?.showAlert) {
+        tg.showAlert('✓ Özet panoya kopyalandı!');
+      } else {
+        alert('✓ Özet panoya kopyalandı!');
+      }
+    }).catch(() => {
+      if (tg?.showAlert) {
+        tg.showAlert('Kopyalama başarısız oldu.');
+      }
+    });
+  } else {
+    haptic('warning');
+    if (tg?.showAlert) {
+      tg.showAlert(text);
+    } else {
+      alert(text);
+    }
+  }
+}

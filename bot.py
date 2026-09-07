@@ -872,16 +872,27 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await safe_edit(update.callback_query, text, main_menu_keyboard(user_id))
     else:
         if WEBAPP_URL:
-            reply_markup = ReplyKeyboardMarkup(
-                [[KeyboardButton("📱 Mini App Aç", web_app=WebAppInfo(url=WEBAPP_URL))]],
-                resize_keyboard=True
-            )
-            await update.effective_message.reply_text(
-                "<i>İpucu: Ekranın altındaki klavye butonundan Mini App'i hızlıca açabilirsiniz.</i>",
-                parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup
-            )
-        await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=main_menu_keyboard(user_id))
+            buttons = [[KeyboardButton("📱 Mini App Aç", web_app=WebAppInfo(url=WEBAPP_URL))]]
+        else:
+            buttons = []
+
+        buttons.extend([
+            [KeyboardButton("🧮 Hesapla"), KeyboardButton("📚 Geçmiş")],
+            [KeyboardButton("⚙️ Ayarlar"), KeyboardButton("📡 Veriler")],
+        ])
+
+        reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+        await update.effective_message.reply_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup
+        )
+        await update.effective_message.reply_text(
+            "<b>📋 Hızlı Menü</b>",
+            parse_mode=ParseMode.HTML,
+            reply_markup=main_menu_keyboard(user_id)
+        )
 
 
 async def show_identity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2253,12 +2264,18 @@ async def post_init(application: Application) -> None:
     except Exception:
         logger.exception("Açılışta piyasa verileri güncellenemedi; varsa önbellek kullanılacak")
 
-    # Explicitly clear any cached MenuButtonWebApp since tg.sendData() ONLY works via ReplyKeyboardMarkup
+    # Bot menü butonlarını ayarla
     try:
-        from telegram import MenuButtonCommands
-        await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+        if WEBAPP_URL:
+            from telegram import MenuButtonWebApp
+            await application.bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(text="📱 Hesapla", web_app=WebAppInfo(url=WEBAPP_URL))
+            )
+        else:
+            from telegram import MenuButtonCommands
+            await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
     except Exception:
-        pass
+        logger.exception("Bot menü butonları ayarlanamadı")
 
     application.bot_data["market_refresh_task"] = asyncio.create_task(market_refresh_loop())
 
@@ -2301,6 +2318,10 @@ def main() -> None:
     application.add_handler(CommandHandler("id", show_identity))
     application.add_handler(CommandHandler("yonetici", show_admin_panel))
     application.add_handler(CommandHandler("iptal", cancel))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^(🧮 Hesapla|hesapla)$"), start_new_calc))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^(📚 Geçmiş|gecmis)$"), show_history))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^(⚙️ Ayarlar|ayarlar)$"), show_settings))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^(📡 Veriler|veriler)$"), show_automatic_data))
     application.add_handler(CallbackQueryHandler(callback_router))
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, custom_value_received))

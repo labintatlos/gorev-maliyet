@@ -6,7 +6,8 @@
       "PowerShell(git config --global user.name \"Aykut\")",
       "PowerShell(git add .)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(grep -E \"^[0-9]+-\\\\s*}\\\\s*$\")"
     ]
   }
 }
