@@ -369,16 +369,34 @@ function submitData() {
   // If running inside Telegram WebApp
   if (tg && tg.sendData) {
     tg.sendData(JSON.stringify(payload));
-    
+
     // sendData closes the app immediately. If it's still open, it means it failed
     setTimeout(() => {
       if (tg.showAlert) {
         tg.showAlert("Hata: Veri gönderilemedi!\n\nLütfen Mini Uygulamayı doğrudan sohbet klavyesinin altındaki '📱 Mini App Aç' butonuna basarak açın.");
       }
     }, 600);
-  } else {
-    // Standalone browser preview
+  } else if (navigator.onLine) {
+    // Online: Telegram WebApp yoksa standart alert göster
     alert('Hesaplama Verisi Hazırlandı:\n' + JSON.stringify(payload, null, 2) + '\n\nTelegram içinde bu form bota doğrudan iletilir.');
+  } else {
+    // Offline: localStorage'a kaydet
+    const calcId = DB.savePendingCalculation(payload);
+    if (calcId) {
+      haptic('success');
+      if (tg?.showAlert) {
+        tg.showAlert(`✓ Hesaplama kaydedildi!\n\nİnternet bağlantısı sağlandığında otomatik olarak gönderilecek.\n\nKayıt #${calcId}`);
+      } else {
+        alert(`✓ Hesaplama kaydedildi! İnternet bağlantısı kurulduğunda otomatik gönderilecek.`);
+      }
+    } else {
+      haptic('error');
+      if (tg?.showAlert) {
+        tg.showAlert('Hata: Hesaplama kaydedilemedi.');
+      } else {
+        alert('Hata: Hesaplama kaydedilemedi.');
+      }
+    }
   }
 }
 

@@ -4,7 +4,9 @@
       "PowerShell(git init)",
       "PowerShell(git config --global user.email \"aykutcemc@gmail.com\")",
       "PowerShell(git config --global user.name \"Aykut\")",
-      "PowerShell(git add .)"
+      "PowerShell(git add .)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

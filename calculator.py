@@ -51,6 +51,41 @@ class CalculationResult:
             f"{format_tr(self.total_cost_try)} TL//"
         )
 
+    @property
+    def hourly_cost(self) -> Decimal:
+        """Saatlik ortalama maliyet (TL/saat)"""
+        if self.duration_hours == 0:
+            return Decimal("0")
+        return quantize_money(self.total_cost_try / self.duration_hours)
+
+    @property
+    def fuel_efficiency(self) -> Decimal:
+        """Yakıt verimliliği (litre/saat)"""
+        if self.duration_hours == 0:
+            return Decimal("0")
+        return (self.fuel_liters / self.duration_hours).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @property
+    def amortization_percentage(self) -> Decimal:
+        """Toplam maliyetin % kaçı amortizasyondan"""
+        if self.total_cost_try == 0:
+            return Decimal("0")
+        return (self.amortization_cost_try / self.total_cost_try * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+    @property
+    def personnel_percentage(self) -> Decimal:
+        """Toplam maliyetin % kaçı personelden"""
+        if self.total_cost_try == 0:
+            return Decimal("0")
+        return (self.personnel_cost_try / self.total_cost_try * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+    @property
+    def fuel_percentage(self) -> Decimal:
+        """Toplam maliyetin % kaçı yakıttan"""
+        if self.total_cost_try == 0:
+            return Decimal("0")
+        return (self.fuel_cost_try / self.total_cost_try * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
 
 def parse_decimal(value: NumberLike) -> Decimal:
     """Türkçe/İngilizce sayı girişlerini Decimal'e çevirir.
