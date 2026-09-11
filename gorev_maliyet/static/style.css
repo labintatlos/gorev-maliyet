@@ -444,6 +444,23 @@ form h2 { margin: 6px 0 12px; font-size: 22px; letter-spacing: -.03em; }
 .duty.enter, .report { animation: rise .3s cubic-bezier(.2, .8, .2, 1) both; }
 .duty.leave { animation: sink .2s ease-in forwards; }
 .duty.shake { animation: shake .4s ease; }
+@keyframes fade { from { opacity: 0; } }
+/* .toast yatayda transform: translateX(-50%) ile ortalanır; genel rise'ı
+   kullanmak bu ofseti ezip başlangıç karesinde kaymaya yol açar. */
+@keyframes toast-rise { from { opacity: 0; transform: translate(-50%, 9px); } }
+.toast { animation: toast-rise .22s cubic-bezier(.2, .8, .2, 1) both; }
+.busy { animation: fade .15s ease-out; }
+.busy-card { animation: rise .2s cubic-bezier(.2, .8, .2, 1) both; }
+/* Su Ürünleri ve Aile Bütçe siteleriyle ortak: düğmelerde masaüstünde ince
+   bir hover gölgesi. */
+@media (hover: hover) {
+  .btn:hover { box-shadow: 0 4px 14px rgba(16, 46, 56, .12); }
+  .btn.primary:hover { box-shadow: 0 4px 14px rgba(8, 126, 115, .3); }
+}
+/* Sekme değişince sayfa içeriği yumuşak yükselerek belirir. .page [hidden]
+   iken display:none olduğundan (bkz. static/style.css üstü), görünür olunca
+   animasyon her seferinde yeniden başlar. */
+.page:not([hidden]) { animation: rise .28s cubic-bezier(.2, .8, .2, 1) both; }
 
 /* ── Duyarlı düzen ──────────────────────────────────────────────────── */
 @media (max-width: 1000px) {

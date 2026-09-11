@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.2
+
+- Görsel/arayüz cilası: sekme değişince sayfa içeriği yumuşak yükselerek belirir, bildirim ve bekleme katmanı animasyonlu açılır, düğmelerde masaüstünde ince bir hover gölgesi var.
+- Su Ürünleri ve Aile Bütçe siteleriyle aynı `rise` hareket eğrisi kullanılır; üçü arasında ortak bir görsel/hareket dili kuruldu.
+- `tools/smoke_test.py` (errors: 0) ve `tools/browser_check.py` ile telefon/masaüstü, açık/koyu temada doğrulandı; konsol hatası veya CSP ihlali yok.
+
 ## 4.0.1
 
 - Giriş ekranı, Geçmiş ve Ayarlar sayfalarındaki "Excel" ifadeleri kaldırıldı: dışa aktarma düğmesi **CSV indir**, ayarlardaki kart **Hesap sabitleri** oldu.
