@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+# Canlı veri imaja girmez: veritabanı ve anahtarlar /share/gorev_maliyet altında oluşur.
+*.db
+*.db-shm
+*.db-wal
+session_secret
+setup_code
+market_data.json

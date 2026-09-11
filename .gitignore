@@ -1,55 +1,23 @@
-# Ortam değişkenleri
-.env
-.env.local
-config.local.yaml
-
-# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
+.pytest_cache/
 venv/
 .venv/
-env/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
 *.log
-logs/
+.env
 
-# Database
+# Çalışma verisi (yerel denemede klasöre yazılır; Home Assistant'ta /share altında durur)
 *.db
-*.sqlite
-*.sqlite3
+*.db-shm
+*.db-wal
+session_secret
+setup_code
+market_data.json
+market_data.json.tmp
 
-# Diğer
-.cache/
-temp/
-tmp/
+# Bu bilgisayara özel canlı sistem notları ve yardımcı betikler (adresler,
+# KeenDNS adı). Depo herkese açık olduğu için asla commit edilmez.
+yerel/
+
+# Claude Code yerel izin listesi (bu bilgisayara özel).
+.claude/settings.local.json

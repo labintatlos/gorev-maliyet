@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="tr" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="google" content="notranslate">
+<meta name="theme-color" content="#102f3c">
+<title>Görev Maliyet Hesaplayıcı</title>
+<link rel="icon" href="static/icon.svg" type="image/svg+xml">
+<script src="static/theme.js"></script>
+<link rel="stylesheet" href="static/style.css">
+<script src="static/calc.js" defer></script>
+<script src="static/app.js" defer></script>
+</head>
+<body>
+<div id="boot" class="boot"><span class="spinner"></span></div>
+
+<section id="auth" class="auth" hidden>
+  <aside class="auth-intro">
+    <span class="eyebrow">GÖREV MALİYET · HESAPLAYICI</span>
+    <h2>Görev süresi ve maliyeti.<br>Saniyeler içinde.</h2>
+    <p>Avara, aborda, yakıt ve personel bilgileriyle<br>Excel formülüyle birebir hesap.</p>
+    <div class="intro-features"><span>01 <b>Canlı maliyet önizlemesi</b></span><span>02 <b>Otomatik Euro ve akaryakıt fiyatı</b></span><span>03 <b>Geçmiş, istatistik ve Excel çıktısı</b></span></div>
+    <span class="intro-footer">GÖREV MALİYET HESAPLAYICI</span>
+  </aside>
+  <div class="auth-card">
+    <button class="theme-toggle auth-theme-toggle" type="button" data-theme-toggle>
+      <span class="theme-icon" aria-hidden="true">🌙</span>
+      <span class="theme-label">Karanlık görünüm</span>
+    </button>
+    <div class="auth-brand">
+      <img src="static/icon.svg" alt="" class="auth-logo">
+      <div><h1>Görev Maliyet</h1><p>Hesaplayıcı</p></div>
+    </div>
+
+    <div id="auth-tabs" class="auth-tabs" role="tablist" hidden>
+      <button type="button" role="tab" data-auth-view="login">Giriş yap</button>
+      <button type="button" role="tab" data-auth-view="register">Üye ol</button>
+    </div>
+
+    <form id="login-form" hidden>
+      <h2>Tekrar hoş geldiniz</h2>
+      <p class="note">Devam etmek için hesabınıza giriş yapın.</p>
+      <p id="ingress-note" class="note" hidden>Home Assistant hesabınız bu sitedeki bir kişiyle henüz eşleşmedi. Bir kez site kullanıcı adı ve şifrenizle girin; buradan sonraki açılışlarda şifre sorulmaz.</p>
+      <label>Kullanıcı adı<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Şifre<input name="password" type="password" autocomplete="current-password" required></label>
+      <label class="check"><input name="remember" type="checkbox" checked> Beni hatırla</label>
+      <p class="form-error" hidden></p>
+      <button type="submit" class="btn primary wide">Giriş yap →</button>
+      <button type="button" class="text-button" data-auth-view="reset">Şifremi unuttum</button>
+    </form>
+
+    <form id="register-form" hidden>
+      <h2>Üyelik başvurusu</h2>
+      <p class="note">Hesabınız yönetici onayından sonra açılır.</p>
+      <div class="grid2 auth-grid">
+        <label>Ad<input name="first_name" autocomplete="given-name" maxlength="40" required></label>
+        <label>Soyad<input name="last_name" autocomplete="family-name" maxlength="40" required></label>
+      </div>
+      <label>E-posta<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+      <label>Telefon<input name="phone" type="tel" autocomplete="tel" maxlength="24" required></label>
+      <label>Statü
+        <select name="position" required>
+          <option value="">Seçin</option>
+          <option value="subay">Subay</option>
+          <option value="astsubay">Astsubay</option>
+          <option value="uzman">Uzman</option>
+          <option value="memur">Memur</option>
+        </select>
+      </label>
+      <label>Kullanıcı adı<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="32" required></label>
+      <label>Şifre <small>(en az 8 karakter)</small><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>Şifre (tekrar)<input name="again" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="form-error" hidden></p>
+      <button type="submit" class="btn primary wide">Başvuruyu gönder</button>
+    </form>
+
+    <form id="reset-form" hidden>
+      <h2>Şifremi unuttum</h2>
+      <p class="note">Kullanıcı adınızı veya e-posta adresinizi yazın. Hesabınız bulunursa yöneticiye şifre yenileme talebi iletilir.</p>
+      <label>Kullanıcı adı veya e-posta<input name="identifier" autocomplete="username" maxlength="254" required></label>
+      <p class="form-error" hidden></p>
+      <button type="submit" class="btn primary wide">Talep gönder</button>
+      <button type="button" class="text-button" data-auth-view="login">Giriş ekranına dön</button>
+    </form>
+
+    <form id="setup-form" hidden>
+      <h2>İlk kurulum</h2>
+      <p class="note">Yönetici hesabını oluşturun. Kurulum kodu Home Assistant'ta <b>Ayarlar → Eklentiler → Görev Maliyet Hesaplayıcı → Günlük</b> sekmesinde yazar.</p>
+      <label>Kurulum kodu<input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>
+      <label>Ad soyad<input name="display_name" autocomplete="name" required></label>
+      <label>Kullanıcı adı<input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Şifre <small>(en az 8 karakter)</small><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="form-error" hidden></p>
+      <button type="submit" class="btn primary wide">Yöneticiyi oluştur</button>
+    </form>
+  </div>
+</section>
+
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <a class="brand" href="#hesapla" aria-label="Hesapla sayfasına git">
+      <img src="static/icon.svg" alt="" class="brand-logo">
+      <span class="brand-text"><b>Görev Maliyet</b><small>Hesaplayıcı</small></span>
+    </a>
+    <nav class="tabs" id="tabs" aria-label="Sayfalar">
+      <a href="#hesapla" data-page="hesapla"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm1 4h10v4H7zm1 8h.01M12 14h.01M16 14h.01M8 18h.01M12 18h4"/></svg><span>Hesapla</span></a>
+      <a href="#gecmis" data-page="gecmis"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg><span>Geçmiş</span></a>
+      <a href="#istatistik" data-page="istatistik"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg><span>İstatistik</span></a>
+      <a href="#ayarlar" data-page="ayarlar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.3 7.3 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.3 7.3 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.3 7.3 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.3 7.3 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z"/></svg><span>Ayarlar</span></a>
+      <a href="#yonetim" data-page="yonetim" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 4v7c0 5-8 9-8 9s-8-4-8-9V6l8-4Zm-4 10 3 3 5-6"/></svg><span>Yönetim</span></a>
+    </nav>
+    <div class="account">
+      <button class="theme-toggle top-theme-toggle" type="button" data-theme-toggle>
+        <span class="theme-icon" aria-hidden="true">🌙</span>
+        <span class="theme-label">Karanlık görünüm</span>
+      </button>
+      <button id="account-btn" class="account-btn" type="button" aria-label="Hesap menüsü" aria-haspopup="menu" aria-expanded="false"><span id="account-initial">•</span></button>
+      <div id="account-menu" class="menu" role="menu" hidden>
+        <div class="menu-head"><b id="account-name"></b><small id="account-username"></small></div>
+        <button type="button" role="menuitem" data-cmd="issue">🛠 Sorun bildir</button>
+        <button type="button" role="menuitem" data-cmd="password">🔑 Şifremi değiştir</button>
+        <button type="button" role="menuitem" data-cmd="people" hidden>👥 Kişiler / Şifreler</button>
+        <button type="button" role="menuitem" data-cmd="logout">🚪 Çıkış yap</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="stage">
+    <!-- HESAPLA -->
+    <section class="page" id="page-hesapla" data-page="hesapla" hidden>
+      <div id="calc-view">
+        <div class="page-head">
+          <div><span class="eyebrow">Görev maliyeti</span><h1>Yeni hesaplama</h1></div>
+          <span class="net-pill" id="net-pill" data-state="online"><i aria-hidden="true"></i><span id="net-label">Çevrimiçi</span></span>
+        </div>
+
+        <div class="market-band" id="market-band">
+          <div class="market-item"><span>Euro</span><strong class="num" id="mk-eur">—</strong><small id="mk-eur-date">TCMB</small></div>
+          <div class="market-item"><span id="mk-fuel-label">Motorin</span><strong class="num" id="mk-fuel">—</strong><small id="mk-fuel-place"></small></div>
+          <div class="market-item"><span>Aylık maaş</span><strong class="num" id="mk-salary">—</strong><small>Sabit ayar</small></div>
+          <div class="market-item"><span>Gündüz</span><strong class="num" id="mk-sun">—</strong><small id="mk-sun-place"></small></div>
+        </div>
+
+        <div class="notice" id="calc-notice" role="status" hidden><span aria-hidden="true">⚠️</span><p id="calc-notice-text"></p></div>
+
+        <section class="card queue" id="queue-card" hidden>
+          <div class="row-between">
+            <div>
+              <h2 class="card-title">📦 Gönderilemeyen hesaplamalar</h2>
+              <small class="hint" id="queue-hint"></small>
+            </div>
+            <span class="count-badge warn num" id="queue-count">0</span>
+          </div>
+          <ul class="queue-list" id="queue-list"></ul>
+          <div class="grid-2">
+            <button type="button" class="btn" data-queue="clear">Tümünü sil</button>
+            <button type="button" class="btn primary" data-queue="send">📤 Şimdi gönder</button>
+          </div>
+        </section>
+
+        <div class="calc-layout">
+          <div class="calc-main">
+            <div class="chips" aria-label="Hızlı doldurma">
+              <button type="button" class="chip" data-preset="last">↩️ Son hesaplama</button>
+              <button type="button" class="chip" data-preset="recent">⚡ Son 4 saat</button>
+              <button type="button" class="chip" data-preset="sample">🧪 Örnek</button>
+            </div>
+
+            <section class="card">
+              <h2 class="card-title">Görev bilgileri</h2>
+              <div class="grid-2">
+                <label class="field">
+                  <span class="field-label">Görev tarihi</span>
+                  <input type="date" id="duty-date" class="input">
+                </label>
+                <div class="field">
+                  <span class="field-label">Yakıt türü</span>
+                  <div class="segmented" role="radiogroup" aria-label="Yakıt türü">
+                    <input type="radio" id="fuel-diesel" name="fuel_type" value="diesel" checked>
+                    <label for="fuel-diesel">🛢 Dizel</label>
+                    <input type="radio" id="fuel-gasoline" name="fuel_type" value="gasoline">
+                    <label for="fuel-gasoline">⛽ Benzin</label>
+                  </div>
+                </div>
+              </div>
+              <div class="row-between">
+                <div>
+                  <span class="field-label">Personel</span>
+                  <small class="hint">Görevdeki toplam kişi</small>
+                </div>
+                <div class="stepper">
+                  <button type="button" data-personnel-delta="-1" aria-label="Personel azalt">−</button>
+                  <input type="number" id="personnel" class="num" inputmode="numeric" min="1" max="500" value="4" aria-label="Personel sayısı">
+                  <button type="button" data-personnel-delta="1" aria-label="Personel artır">+</button>
+                </div>
+              </div>
+              <div class="pill-row" id="personnel-presets">
+                <button type="button" class="pill" data-personnel="2">2</button>
+                <button type="button" class="pill" data-personnel="3">3</button>
+                <button type="button" class="pill" data-personnel="4">4</button>
+                <button type="button" class="pill" data-personnel="5">5</button>
+                <button type="button" class="pill" data-personnel="6">6</button>
+                <button type="button" class="pill" data-personnel="8">8</button>
+              </div>
+            </section>
+
+            <div class="duties" id="duties"></div>
+            <button type="button" class="add-duty" id="btn-add-duty">＋ Görev ekle</button>
+          </div>
+
+          <aside class="calc-side">
+            <section class="summary" id="summary" aria-live="polite">
+              <div class="summary-head">
+                <span id="sum-label">Tahmini toplam maliyet</span>
+                <span class="count-badge num" id="sum-count">1 görev</span>
+              </div>
+              <div class="summary-total num" id="sum-total">—</div>
+              <div id="sum-priced">
+                <div class="stack-bar" aria-hidden="true">
+                  <span class="seg-amort" id="bar-amort"></span>
+                  <span class="seg-pers" id="bar-pers"></span>
+                  <span class="seg-fuel" id="bar-fuel"></span>
+                </div>
+                <ul class="legend">
+                  <li><i class="dot seg-amort"></i>Amortisman<b class="num" id="lg-amort">—</b><em class="num" id="pc-amort"></em></li>
+                  <li><i class="dot seg-pers"></i>Personel<b class="num" id="lg-pers">—</b><em class="num" id="pc-pers"></em></li>
+                  <li><i class="dot seg-fuel"></i>Yakıt<b class="num" id="lg-fuel">—</b><em class="num" id="pc-fuel"></em></li>
+                </ul>
+              </div>
+              <div class="stats-grid">
+                <div class="stat"><span>Toplam süre</span><b class="num" id="st-duration">—</b></div>
+                <div class="stat"><span>Toplam yakıt</span><b class="num" id="st-fuel">—</b></div>
+                <div class="stat"><span id="st-3-label">Saatlik ortalama</span><b class="num" id="st-3">—</b></div>
+                <div class="stat"><span id="st-4-label">Gündüz / gece</span><b class="num" id="st-4">—</b></div>
+              </div>
+              <p class="summary-note" id="sum-note"></p>
+              <button type="button" class="btn primary wide big" id="btn-submit">✅ Hesapla ve kaydet</button>
+              <button type="button" class="btn-ghost" id="btn-copy">📋 Özeti kopyala</button>
+            </section>
+          </aside>
+        </div>
+      </div>
+
+      <div id="result-view" hidden>
+        <div class="page-head">
+          <div><span class="eyebrow">Geçmişe kaydedildi</span><h1 id="result-title">Hesaplama sonucu</h1></div>
+          <div class="head-actions">
+            <button type="button" class="btn" id="result-edit">✏️ Değerleri düzenle</button>
+            <button type="button" class="btn primary" id="result-new">＋ Yeni hesaplama</button>
+          </div>
+        </div>
+        <div id="result-summary"></div>
+        <div id="result-list" class="report-list"></div>
+      </div>
+    </section>
+
+    <!-- GEÇMİŞ -->
+    <section class="page" id="page-gecmis" data-page="gecmis" hidden>
+      <div class="page-head">
+        <div><span class="eyebrow">Kayıtlar</span><h1>Geçmiş hesaplamalar</h1><p class="page-sub" id="history-count"></p></div>
+        <div class="head-actions">
+          <a class="btn" id="btn-export" href="api/export" download>📤 Excel (CSV) indir</a>
+          <button type="button" class="btn danger" id="btn-clear">🗑 Geçmişi temizle</button>
+        </div>
+      </div>
+      <div id="history-list" class="history-list"></div>
+      <div class="pager" id="history-pager" hidden>
+        <button type="button" class="btn" id="history-prev">← Önceki</button>
+        <span id="history-page" class="num"></span>
+        <button type="button" class="btn" id="history-next">Sonraki →</button>
+      </div>
+    </section>
+
+    <!-- İSTATİSTİK -->
+    <section class="page" id="page-istatistik" data-page="istatistik" hidden>
+      <div class="page-head"><div><span class="eyebrow">Özet</span><h1>İstatistikler</h1><p class="page-sub">Görev tarihine göre gruplanır.</p></div></div>
+      <div id="stats-periods" class="stats-periods"></div>
+      <section class="card" id="stats-distribution" hidden>
+        <h2 class="card-title" id="stats-distribution-title">Maliyet dağılımı</h2>
+        <div class="stack-bar big" id="stats-bar" aria-hidden="true"></div>
+        <ul class="legend" id="stats-legend"></ul>
+      </section>
+    </section>
+
+    <!-- AYARLAR -->
+    <section class="page" id="page-ayarlar" data-page="ayarlar" hidden>
+      <div class="page-head"><div><span class="eyebrow">Hesap</span><h1>Ayarlar</h1></div></div>
+      <div class="settings-grid">
+        <form class="card" id="settings-form">
+          <h2 class="card-title">Sabit ayarlar</h2>
+          <p class="note">Bir kez seçmeniz yeterlidir; sonraki hesaplamalarda otomatik uygulanır.</p>
+          <label>Akaryakıt fiyat ili<select name="fuel_province" id="set-fuel" required></select></label>
+          <label>Gün doğumu / batımı ili<select name="solar_province" id="set-solar" required></select></label>
+          <label>Aylık personel maaşı (₺)<input name="monthly_salary" id="set-salary" inputmode="decimal" autocomplete="off" required></label>
+          <p class="form-error" hidden></p>
+          <button type="submit" class="btn primary wide">Kaydet</button>
+        </form>
+
+        <section class="card">
+          <div class="row-between">
+            <h2 class="card-title">Otomatik veriler</h2>
+            <span class="badge" id="market-status"></span>
+          </div>
+          <dl class="data-list" id="market-list"></dl>
+          <button type="button" class="btn wide" id="btn-refresh">🔄 Şimdi yenile</button>
+          <p class="note">Euro TCMB döviz satış kurudur; akaryakıt seçili ilin Petrol Ofisi V/Max fiyatıdır. Veriler site açılışında ve her gün 17:00'de yenilenir.</p>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">Excel sabitleri</h2>
+          <dl class="data-list" id="constants-list"></dl>
+        </section>
+      </div>
+    </section>
+
+    <!-- YÖNETİM -->
+    <section class="page" id="page-yonetim" data-page="yonetim" hidden>
+      <div class="page-head">
+        <div><span class="eyebrow">Yönetici</span><h1>Yönetim</h1></div>
+        <div class="head-actions">
+          <button type="button" class="btn" id="admin-refresh">🔄 Yenile</button>
+          <button type="button" class="btn primary" id="admin-people">👥 Kişiler / Şifreler</button>
+        </div>
+      </div>
+      <div class="tiles" id="admin-tiles"></div>
+      <div class="admin-grid">
+        <section class="card"><h2 class="card-title">Son 7 gün · hesaplama</h2><div class="trend" id="admin-trend"></div></section>
+        <section class="card"><h2 class="card-title">Açık sorun bildirimleri</h2><ul class="plain-list" id="admin-issues"></ul></section>
+        <section class="card"><h2 class="card-title">Kişiler ve kullanım</h2><div class="table-scroll"><table class="data-table" id="admin-people-table"></table></div></section>
+        <section class="card"><h2 class="card-title">Son işlemler</h2><ul class="plain-list" id="admin-activity"></ul></section>
+      </div>
+    </section>
+
+    <footer class="stage-footer"><img src="static/icon.svg" alt="" width="22" height="22"><span>Görev Maliyet Hesaplayıcı</span><span>Süre · Maliyet · GÖRRAP</span></footer>
+  </main>
+</div>
+
+<dialog id="record-dialog" class="dialog wide">
+  <div class="dialog-head">
+    <h2 id="record-title">Kayıt</h2>
+    <button type="button" class="icon-btn" data-close aria-label="Kapat">✕</button>
+  </div>
+  <div id="record-body"></div>
+  <div class="dialog-actions">
+    <button type="button" class="btn danger" id="record-delete">🗑 Kaydı sil</button>
+    <button type="button" class="btn primary" id="record-reuse">♻️ Bu değerlerle hesapla</button>
+  </div>
+</dialog>
+
+<dialog id="password-dialog" class="dialog">
+  <form id="password-form" method="dialog">
+    <h2>Şifremi değiştir</h2>
+    <label>Mevcut şifre<input name="current" type="password" autocomplete="current-password" required></label>
+    <label>Yeni şifre <small>(en az 8 karakter)</small><input name="new" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Yeni şifre (tekrar)<input name="again" type="password" autocomplete="new-password" minlength="8" required></label>
+    <p class="note">Şifre değişince diğer cihazlardaki oturumlarınız kapanır.</p>
+    <p class="form-error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn" data-close>Vazgeç</button>
+      <button type="submit" class="btn primary">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="issue-dialog" class="dialog">
+  <form id="issue-form" method="dialog">
+    <h2>Sorun bildir</h2>
+    <p class="note">Karşılaştığınız sorunu ve mümkünse hangi sayfada oluştuğunu açıklayın. Bildirim yönetici paneline iletilir.</p>
+    <label>Açıklama<textarea name="message" rows="6" minlength="5" maxlength="2000" required></textarea></label>
+    <p class="form-error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn" data-close>Vazgeç</button>
+      <button type="submit" class="btn primary">Gönder</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="people-dialog" class="dialog wide">
+  <div class="dialog-head">
+    <h2>Kişiler / Şifreler</h2>
+    <button type="button" class="icon-btn" data-close aria-label="Kapat">✕</button>
+  </div>
+  <ul id="people-list" class="people"></ul>
+  <form id="person-form" class="person-form">
+    <h3>Yeni kişi ekle</h3>
+    <div class="grid2">
+      <label>Ad soyad<input name="display_name" required></label>
+      <label>Kullanıcı adı<input name="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Şifre <small>(en az 8 karakter)</small><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label class="check"><input name="is_admin" type="checkbox"> Yönetici</label>
+    </div>
+    <p class="form-error" hidden></p>
+    <button type="submit" class="btn primary">Kişiyi ekle</button>
+  </form>
+</dialog>
+
+<div id="busy" class="busy" hidden><div class="busy-card"><span class="spinner"></span><p id="busy-text">Yükleniyor…</p></div></div>
+<div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

@@ -1,19 +1,25 @@
+"""Otomatik piyasa verisi: TCMB Euro döviz satış kuru ve Petrol Ofisi il fiyatları.
+
+Yalnızca standart kütüphane kullanılır (urllib, html.parser). Veriler bir JSON
+önbelleğinde tutulur; kaynak geçici olarak ulaşılamazsa son başarılı değer
+korunur.
+"""
+
 from __future__ import annotations
 
 import json
 import logging
 import re
 import threading
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable
 from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
-
-import requests
-from bs4 import BeautifulSoup
 
 from provinces import get_province
 
@@ -22,7 +28,7 @@ logger = logging.getLogger(__name__)
 TZ = ZoneInfo("Europe/Istanbul")
 TCMB_URL = "https://www.tcmb.gov.tr/kurlar/today.xml"
 PETROL_OFISI_URL = "https://www.petrolofisi.com.tr/akaryakit-fiyatlari/{slug}-akaryakit-fiyatlari"
-USER_AGENT = "Mozilla/5.0 (compatible; GorevMaliyetBot/3.5; +HomeAssistant)"
+USER_AGENT = "Mozilla/5.0 (compatible; GorevMaliyet/4.0)"
 HTTP_TIMEOUT_SECONDS = 25
 
 
@@ -77,9 +83,6 @@ class MarketSnapshot:
         item = self.province_snapshot(province)
         return item.price_for(fuel_type) if item else None
 
-    def ready_for(self, fuel_type: str, province: str) -> bool:
-        return self.eur_decimal is not None and self.price_for(fuel_type, province) is not None
-
 
 class MarketDataStore:
     """TCMB EUR kuru ile seçilen illerin Petrol Ofisi benzin/motorin fiyatlarını önbellekler."""
@@ -87,33 +90,19 @@ class MarketDataStore:
     def __init__(self, cache_path: Path):
         self.cache_path = cache_path
         self._lock = threading.Lock()
+        # Aynı anda gelen yenileme istekleri kaynak sitelere tekrar tekrar gitmesin.
+        self._refresh_lock = threading.Lock()
         self._snapshot = self._load_cache()
 
     def _load_cache(self) -> MarketSnapshot:
         try:
             if self.cache_path.exists():
                 raw = json.loads(self.cache_path.read_text(encoding="utf-8"))
-                fuel_prices = raw.get("fuel_prices") or {}
-
-                # v3.4 ve öncesi tek-il önbelleğini Samsun kaydına taşı.
-                if not fuel_prices and (
-                    raw.get("diesel_price_try_per_liter") or raw.get("gasoline_price_try_per_liter")
-                ):
-                    fuel_prices["samsun"] = {
-                        "province_name": "Samsun",
-                        "diesel_price_try_per_liter": raw.get("diesel_price_try_per_liter")
-                        or raw.get("fuel_price_try_per_liter"),
-                        "gasoline_price_try_per_liter": raw.get("gasoline_price_try_per_liter"),
-                        "source_date": raw.get("diesel_source_date") or raw.get("gasoline_source_date") or raw.get("fuel_source_date"),
-                        "source_name": raw.get("diesel_source_name") or raw.get("gasoline_source_name") or "Eski Samsun önbelleği",
-                        "updated_at": raw.get("diesel_updated_at") or raw.get("gasoline_updated_at") or raw.get("fuel_updated_at"),
-                    }
-
                 return MarketSnapshot(
                     eur_try=raw.get("eur_try"),
                     eur_source_date=raw.get("eur_source_date"),
                     eur_updated_at=raw.get("eur_updated_at"),
-                    fuel_prices=fuel_prices,
+                    fuel_prices=raw.get("fuel_prices") or {},
                     last_refresh_at=raw.get("last_refresh_at"),
                 )
         except Exception as exc:
@@ -133,19 +122,21 @@ class MarketDataStore:
         temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         temp.replace(self.cache_path)
 
+    def _copy_locked(self) -> MarketSnapshot:
+        return MarketSnapshot(
+            eur_try=self._snapshot.eur_try,
+            eur_source_date=self._snapshot.eur_source_date,
+            eur_updated_at=self._snapshot.eur_updated_at,
+            fuel_prices=json.loads(json.dumps(self._snapshot.fuel_prices, ensure_ascii=False)),
+            last_refresh_at=self._snapshot.last_refresh_at,
+        )
+
     def get(self) -> MarketSnapshot:
         with self._lock:
-            # JSON round-trip = nested dict için güvenli kopya.
-            return MarketSnapshot(
-                eur_try=self._snapshot.eur_try,
-                eur_source_date=self._snapshot.eur_source_date,
-                eur_updated_at=self._snapshot.eur_updated_at,
-                fuel_prices=json.loads(json.dumps(self._snapshot.fuel_prices, ensure_ascii=False)),
-                last_refresh_at=self._snapshot.last_refresh_at,
-            )
+            return self._copy_locked()
 
     def refresh(self, provinces: Iterable[str] | None = None) -> dict[str, Any]:
-        province_names = []
+        province_names: list[str] = []
         for value in provinces or ["Samsun"]:
             try:
                 name = get_province(value).name
@@ -157,49 +148,45 @@ class MarketDataStore:
         if not province_names:
             province_names = ["Samsun"]
 
-        now = datetime.now(TZ).isoformat(timespec="seconds")
-        eur_error: str | None = None
-        province_errors: dict[str, str] = {}
+        with self._refresh_lock:
+            now = datetime.now(TZ).isoformat(timespec="seconds")
+            eur_error: str | None = None
+            province_errors: dict[str, str] = {}
 
-        try:
-            eur_value, eur_date = fetch_tcmb_eur_selling()
-            with self._lock:
-                self._snapshot.eur_try = str(eur_value)
-                self._snapshot.eur_source_date = eur_date
-                self._snapshot.eur_updated_at = now
-            logger.info("TCMB EUR Döviz Satış güncellendi: %s TL (%s)", eur_value, eur_date)
-        except Exception as exc:
-            eur_error = str(exc)
-            logger.warning("TCMB EUR kuru güncellenemedi; son değer korunuyor: %s", exc)
-
-        for province_name in province_names:
-            p = get_province(province_name)
             try:
-                gasoline_value, diesel_value = fetch_petrol_ofisi_prices(p.name)
-                source_date = datetime.now(TZ).date().isoformat()
+                eur_value, eur_date = fetch_tcmb_eur_selling()
                 with self._lock:
-                    self._snapshot.fuel_prices[p.key] = {
-                        "province_name": p.name,
-                        "gasoline_price_try_per_liter": str(gasoline_value),
-                        "diesel_price_try_per_liter": str(diesel_value),
-                        "source_date": source_date,
-                        "source_name": f"Petrol Ofisi {p.name}",
-                        "updated_at": now,
-                    }
-                logger.info(
-                    "%s Petrol Ofisi fiyatları güncellendi: Benzin=%s TL/L, Motorin=%s TL/L",
-                    p.name,
-                    gasoline_value,
-                    diesel_value,
-                )
+                    self._snapshot.eur_try = str(eur_value)
+                    self._snapshot.eur_source_date = eur_date
+                    self._snapshot.eur_updated_at = now
+                logger.info("TCMB EUR Döviz Satış güncellendi: %s TL (%s)", eur_value, eur_date)
             except Exception as exc:
-                province_errors[p.name] = str(exc)
-                logger.warning("%s Petrol Ofisi fiyatları güncellenemedi; son değer korunuyor: %s", p.name, exc)
+                eur_error = str(exc)
+                logger.warning("TCMB EUR kuru güncellenemedi; son değer korunuyor: %s", exc)
 
-        with self._lock:
-            self._snapshot.last_refresh_at = now
-            self._save_cache_locked()
-            snapshot = self.get_unlocked_copy()
+            for province_name in province_names:
+                p = get_province(province_name)
+                try:
+                    gasoline_value, diesel_value = fetch_petrol_ofisi_prices(p.name)
+                    with self._lock:
+                        self._snapshot.fuel_prices[p.key] = {
+                            "province_name": p.name,
+                            "gasoline_price_try_per_liter": str(gasoline_value),
+                            "diesel_price_try_per_liter": str(diesel_value),
+                            "source_date": datetime.now(TZ).date().isoformat(),
+                            "source_name": f"Petrol Ofisi {p.name}",
+                            "updated_at": now,
+                        }
+                    logger.info("%s Petrol Ofisi fiyatları güncellendi: Benzin=%s TL/L, Motorin=%s TL/L",
+                                p.name, gasoline_value, diesel_value)
+                except Exception as exc:
+                    province_errors[p.name] = str(exc)
+                    logger.warning("%s Petrol Ofisi fiyatları güncellenemedi; son değer korunuyor: %s", p.name, exc)
+
+            with self._lock:
+                self._snapshot.last_refresh_at = now
+                self._save_cache_locked()
+                snapshot = self._copy_locked()
 
         return {
             "snapshot": snapshot,
@@ -209,34 +196,21 @@ class MarketDataStore:
             "fuel_ok": not province_errors,
         }
 
-    def get_unlocked_copy(self) -> MarketSnapshot:
-        return MarketSnapshot(
-            eur_try=self._snapshot.eur_try,
-            eur_source_date=self._snapshot.eur_source_date,
-            eur_updated_at=self._snapshot.eur_updated_at,
-            fuel_prices=json.loads(json.dumps(self._snapshot.fuel_prices, ensure_ascii=False)),
-            last_refresh_at=self._snapshot.last_refresh_at,
-        )
 
-
-def _get(url: str) -> requests.Response:
-    response = requests.get(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.7",
-        },
-        timeout=HTTP_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return response
+def _get(url: str) -> tuple[bytes, str]:
+    request = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.7",
+    })
+    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        return response.read(), response.headers.get_content_charset() or "utf-8"
 
 
 def fetch_tcmb_eur_selling() -> tuple[Decimal, str]:
-    response = _get(TCMB_URL)
+    body, _ = _get(TCMB_URL)
     try:
-        root = ET.fromstring(response.content)
+        root = ET.fromstring(body)
     except ET.ParseError as exc:
         raise RuntimeError("TCMB XML yanıtı çözümlenemedi") from exc
 
@@ -258,15 +232,62 @@ def fetch_tcmb_eur_selling() -> tuple[Decimal, str]:
     return value, source_date
 
 
+class _PriceTable(HTMLParser):
+    """Sayfadaki tablo satırlarını hücre metinleriyle toplar.
+
+    Petrol Ofisi fiyat hücresinde KDV dahil fiyat `with-tax` sınıflı bir
+    <span> içindedir; varsa hücrenin değeri olarak o kullanılır.
+    """
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[str]] = []
+        self._row: list[str] | None = None
+        self._cell: list[str] | None = None
+        self._with_tax: list[str] | None = None
+        self._span_depth = 0
+        self._with_tax_depth: int | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self._row = []
+        elif tag in ("td", "th") and self._row is not None:
+            self._cell, self._with_tax = [], None
+        elif tag == "span" and self._cell is not None:
+            self._span_depth += 1
+            classes = (dict(attrs).get("class") or "").split()
+            if "with-tax" in classes and self._with_tax is None:
+                self._with_tax, self._with_tax_depth = [], self._span_depth
+
+    def handle_endtag(self, tag):
+        if tag == "span" and self._cell is not None:
+            if self._with_tax_depth == self._span_depth:
+                self._with_tax_depth = None
+            self._span_depth = max(0, self._span_depth - 1)
+        elif tag in ("td", "th") and self._cell is not None and self._row is not None:
+            source = self._with_tax if self._with_tax else self._cell
+            self._row.append(" ".join(" ".join(source).split()))
+            self._cell, self._with_tax, self._with_tax_depth, self._span_depth = None, None, None, 0
+        elif tag == "tr" and self._row is not None:
+            if self._row:
+                self.rows.append(self._row)
+            self._row = None
+
+    def handle_data(self, data):
+        if self._cell is not None:
+            self._cell.append(data)
+            if self._with_tax_depth is not None and self._with_tax is not None:
+                self._with_tax.append(data)
+
+
 def _parse_price(text: str) -> Decimal | None:
-    # Petrol Ofisi hücresinde ilk görünen ondalıklı değer KDV dahil fiyattır.
-    matches = re.findall(r"(?<!\d)(\d{1,3}[\.,]\d{2})(?!\d)", text)
-    for raw in matches:
+    # Hücrede ilk görünen ondalıklı değer KDV dahil fiyattır.
+    for raw in re.findall(r"(?<!\d)(\d{1,3}[\.,]\d{2})(?!\d)", text):
         try:
             value = Decimal(raw.replace(",", "."))
         except InvalidOperation:
             continue
-        if Decimal("20") <= value <= Decimal("200"):
+        if Decimal("20") <= value <= Decimal("300"):
             return value
     return None
 
@@ -283,35 +304,26 @@ def _ascii_tr(value: str) -> str:
     )
 
 
-def fetch_petrol_ofisi_prices(province: str) -> tuple[Decimal, Decimal]:
-    """Petrol Ofisi il sayfasından (benzin, motorin) KDV dahil fiyatlarını alır.
+def parse_petrol_ofisi_html(text: str, province: str) -> tuple[Decimal, Decimal]:
+    """Petrol Ofisi il sayfasından (benzin, motorin) KDV dahil fiyatlarını ayrıştırır.
 
-    İl merkez satırı varsa onu kullanır. İstanbul gibi merkez adının parantezli
-    bölündüğü sayfalarda il adıyla başlayan ilk satır seçilir.
+    İl merkezi satırı (ör. SAMSUN) varsa onu kullanır; İstanbul gibi merkez
+    adının parantezle bölündüğü sayfalarda il adıyla başlayan ilk satır seçilir.
     """
     p = get_province(province)
-    po_slug = {"afyonkarahisar": "afyon"}.get(p.key, p.key)
-    url = PETROL_OFISI_URL.format(slug=po_slug)
-    response = _get(url)
-    response.encoding = response.apparent_encoding or response.encoding or "utf-8"
-    soup = BeautifulSoup(response.text, "html.parser")
+    parser = _PriceTable()
+    parser.feed(text)
 
     gasoline_index: int | None = None
     diesel_index: int | None = None
     data_rows: list[tuple[list[str], list[str]]] = []
-
-    for tr in soup.find_all("tr"):
-        cells = [" ".join(cell.stripped_strings) for cell in tr.find_all(["th", "td"])]
-        if not cells:
-            continue
+    for cells in parser.rows:
         normalized = [_ascii_tr(cell).strip() for cell in cells]
-
         for idx, cell in enumerate(normalized):
-            if "KURSUNSUZ 95" in cell or ("BENZIN" in cell and "DIESEL" not in cell):
+            if gasoline_index is None and ("KURSUNSUZ 95" in cell or ("BENZIN" in cell and "DIESEL" not in cell)):
                 gasoline_index = idx
-            if "DIESEL" in cell or "MOTORIN" in cell:
+            if diesel_index is None and ("DIESEL" in cell or "MOTORIN" in cell):
                 diesel_index = idx
-
         if any(_parse_price(cell) is not None for cell in cells[1:]):
             data_rows.append((cells, normalized))
 
@@ -324,20 +336,25 @@ def fetch_petrol_ofisi_prices(province: str) -> tuple[Decimal, Decimal]:
     if not candidates:
         raise RuntimeError(f"Petrol Ofisi {p.name} fiyat tablosu bulunamadı")
 
-    cells, _normalized = candidates[0]
-    gasoline: Decimal | None = None
-    diesel: Decimal | None = None
-    for idx in [gasoline_index, 1]:
+    cells, _ = candidates[0]
+    gasoline = diesel = None
+    for idx in (gasoline_index, 1):
         if idx is not None and 0 <= idx < len(cells):
             gasoline = _parse_price(cells[idx])
             if gasoline is not None:
                 break
-    for idx in [diesel_index, 2]:
+    for idx in (diesel_index, 2):
         if idx is not None and 0 <= idx < len(cells):
             diesel = _parse_price(cells[idx])
             if diesel is not None:
                 break
-
     if gasoline is None or diesel is None:
         raise RuntimeError(f"Petrol Ofisi {p.name} benzin/motorin fiyatları ayrıştırılamadı")
     return gasoline, diesel
+
+
+def fetch_petrol_ofisi_prices(province: str) -> tuple[Decimal, Decimal]:
+    p = get_province(province)
+    slug = {"afyonkarahisar": "afyon"}.get(p.key, p.key)
+    body, charset = _get(PETROL_OFISI_URL.format(slug=slug))
+    return parse_petrol_ofisi_html(body.decode(charset, "replace"), p.name)
