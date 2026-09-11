@@ -102,6 +102,8 @@ def main():
         check('health', guest.call('/health') == (200, {'status': 'ok'}))
         status, body, headers = guest.call('/', raw=True)
         check('index', status == 200 and 'Görev Maliyet'.encode('utf-8') in body)
+        visible_text = body + guest.call('/static/app.js', raw=True)[1]
+        check('arayüzde Excel ifadesi yok', b'excel' not in visible_text.lower())
         check('CSP başlığı', "default-src 'self'" in (headers.get('Content-Security-Policy') or ''))
         for name in ('app.js', 'calc.js', 'style.css', 'theme.js', 'icon.svg'):
             check(f'static/{name}', guest.call(f'/static/{name}', raw=True)[0] == 200)

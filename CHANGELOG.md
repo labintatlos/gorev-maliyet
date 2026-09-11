@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.1
+
+- Giriş ekranı, Geçmiş ve Ayarlar sayfalarındaki "Excel" ifadeleri kaldırıldı: dışa aktarma düğmesi **CSV indir**, ayarlardaki kart **Hesap sabitleri** oldu.
+- Belgeler aynı şekilde güncellendi; duman testi arayüzde bu ifadenin geri gelmediğini denetler.
+- Eski Görev Maliyet Telegram Botu eklentisi Home Assistant'tan kaldırıldı.
+
 ## 4.0.0
 
 Telegram botundan **web sitesine** geçiş. Proje artık Su Ürünleri ve Aile Bütçe siteleriyle aynı düzende, kullanıcı adı ve şifreyle açılan bir Home Assistant eklentisidir (`gorev_maliyet`, port 8102, Home Assistant paneli).
@@ -8,9 +14,9 @@ Telegram botundan **web sitesine** geçiş. Proje artık Su Ürünleri ve Aile B
 - Giriş, **Üye ol** (yönetici onaylı), **Şifremi unuttum**, **Kişiler / Şifreler**, **Sorun bildir**, işlem kayıtları ve kurulum koduyla ilk yönetici.
 - **Hesapla:** Mini App'in hesap ekranı sitenin ana sayfası oldu. Euro, il akaryakıt fiyatı, maaş ve gün doğumu/batımı sunucudan canlı gelir; toplam maliyet ve dağılım değerler değiştikçe görünür. Birden fazla görev tek seferde hesaplanır.
 - **Sonuç raporu:** toplam, dağılım çubuğu, saatlik ortalama, yakıt ağırlığı/verimi, kullanılan veriler, GÖRRAP satırını kopyalama; çoklu görevde günlük toplam.
-- **Geçmiş:** kayıt detayı, bu değerlerle yeniden hesaplama, kayıt silme, geçmişi temizleme, Excel'de açılan CSV.
+- **Geçmiş:** kayıt detayı, bu değerlerle yeniden hesaplama, kayıt silme, geçmişi temizleme, CSV çıktısı.
 - **İstatistik:** bu ay, son 7 gün, geçen ay, tüm zamanlar ve maliyet dağılımı.
-- **Ayarlar:** akaryakıt ili, güneş ili, aylık maaş; otomatik verileri görme ve elle yenileme; Excel sabitleri.
+- **Ayarlar:** akaryakıt ili, güneş ili, aylık maaş; otomatik verileri görme ve elle yenileme; hesap sabitleri.
 - **Yönetim:** bugünkü/toplam hesaplama, son 7 gün grafiği, kişi başına kullanım, açık sorun bildirimleri, son işlemler.
 - Aydınlık/karanlık görünüm, telefonda alt gezinme çubuğu, bağlantı yokken hesaplamayı cihazda bekletme.
 

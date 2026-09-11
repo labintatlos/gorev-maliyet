@@ -1,6 +1,6 @@
 name: "Görev Maliyet Hesaplayıcı"
 description: "Görev süresi ve maliyet hesabı — kullanıcı adı ve şifreyle açılan web sitesi"
-version: "4.0.0"
+version: "4.0.1"
 slug: "gorev_maliyet"
 url: "https://github.com/labintatlos/gorev-maliyet"
 init: false

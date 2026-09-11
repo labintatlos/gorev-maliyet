@@ -1,7 +1,7 @@
 # Görev Maliyet Hesaplayıcı
 
-Görev süresini ve maliyetini (amortisman + personel + yakıt) Excel formülüyle
-birebir hesaplayan, kullanıcı adı ve şifreyle açılan web sitesi.
+Görev süresini ve maliyetini (amortisman + personel + yakıt) hesaplayan,
+kullanıcı adı ve şifreyle açılan web sitesi.
 
 ## Adresler
 

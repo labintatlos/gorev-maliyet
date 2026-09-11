@@ -7,8 +7,8 @@ kullanıcıya verilen cevaplar Türkçedir.
 ## Proje
 
 Görev Maliyet Hesaplayıcı: avara/aborda saatleri, yakıt ve personel bilgisiyle
-görev süresini ve maliyetini (amortisman + personel + yakıt) Excel formülüyle
-birebir hesaplayan, GÖRRAP satırını üreten web sitesi. Home Assistant OS
+görev süresini ve maliyetini (amortisman + personel + yakıt) hesaplayan,
+GÖRRAP satırını üreten web sitesi. Home Assistant OS
 üzerinde (Raspberry Pi 5) bir eklenti olarak çalışır ve kullanıcı adı/şifreyle
 açılır. Eskiden Telegram botuydu (3.x); 4.0.0 ile tamamen web sitesine geçildi.
 Giriş, üyelik, kişiler ve dağıtım düzeni kullanıcının **Su Ürünleri Denetim
@@ -21,7 +21,9 @@ Mimari ve dosya yapısı için [README.md](README.md), dağıtım ve KeenDNS iç
 
 1. **Çalışan özellikler korunur.** Mevcut davranış gereksinimdir. Değişiklik
    küçük adımlarla yapılır ve her adım eskisiyle karşılaştırılarak doğrulanır.
-   Hesap sonuçları `calculator.py` (Excel) ile birebir kalmalıdır.
+   Hesap sonuçları `calculator.py` formülleriyle birebir kalmalıdır. Arayüzde ve
+   belgelerde "Excel" ifadesi/vurgusu kullanılmaz (kullanıcı kararı, 4.0.1);
+   `smoke_test.py` bunu denetler.
 2. **Çalıştırmadan "bitti" denmez.** Kod gerçekten çalıştırılmadan ve test
    çıktısı görülmeden hiçbir iş "tamamlandı / test edildi" diye raporlanmaz.
    Doğrulanamayan kısım açıkça söylenir.
@@ -100,6 +102,7 @@ kopyasıdır; formül değişirse ikisi birlikte değişmelidir.
 | # | Adım | Durum |
 |---|------|-------|
 | 1 | Telegram botundan web sitesine geçiş: giriş/üyelik, hesaplama, geçmiş, istatistik, CSV, ayarlar, yönetim | ✅ 4.0.0 (yerelde doğrulandı) |
-| 2 | GitHub deposu, Home Assistant'a eklenti deposu olarak ekleme ve kurulum, ilk yönetici | ⏳ |
-| 3 | KeenDNS alt adresi (HTTPS) ve dışarıdan erişim kontrolü | ⏳ |
-| 4 | Eski Telegram botu eklentisini (`local_gorev_maliyet_bot`) durdurup kaldırma | ⏳ kullanıcı onayıyla |
+| 2 | GitHub deposu, Home Assistant'a eklenti deposu olarak ekleme ve kurulum, ilk yönetici | ✅ 4.0.0 |
+| 3 | KeenDNS alt adresi (HTTPS) ve dışarıdan erişim kontrolü | ✅ 4.0.0 |
+| 4 | Eski Telegram botu eklentisini (`local_gorev_maliyet_bot`) durdurup kaldırma | ✅ kullanıcı onayıyla kaldırıldı |
+| 5 | Arayüz ve belgelerden "Excel" vurgusunu kaldırma | ✅ 4.0.1 |
