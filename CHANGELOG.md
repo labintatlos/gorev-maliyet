@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.1
+
+- Telefonda görev tarihi ve yakıt türü alt alta yerleştirildi; Dizel/Benzin seçimi tam genişlikte eşit iki seçenek olarak düzenlendi. Emojiler kaldırıldı ve seçili yakıtın çerçevesi belirginleştirildi.
+- Tarih alanının genişliği sınırlandı; tarih ve yakıt alanlarının yüksekliği ve aralıkları eşitlendi.
+- Stil dosyası bağlantısına sürüm eklendi; güncelleme sonrası eski görünümün tarayıcı önbelleğinden gelmesi önlendi.
+- Duman ve Chrome tarayıcı testleri `errors: 0`; 320–1280 piksel kontrollerinde yatay taşma yok. Gerçek iPhone/Safari doğrulaması yapılmadı.
+
 ## 4.1.0
 
 - Giriş ekranı, üst menü ve sayfa yüzeyleri yenilendi; denizcilik renkleri açık ve koyu görünümde korundu.

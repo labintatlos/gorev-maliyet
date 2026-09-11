@@ -8,7 +8,7 @@
 <title>Görev Maliyet Hesaplayıcı</title>
 <link rel="icon" href="static/icon.svg" type="image/svg+xml">
 <script src="static/theme.js"></script>
-<link rel="stylesheet" href="static/style.css">
+<link rel="stylesheet" href="static/style.css?v=4.1.1">
 <script src="static/calc.js" defer></script>
 <script src="static/app.js" defer></script>
 </head>
@@ -171,7 +171,7 @@
 
             <section class="card">
               <div class="section-heading"><span class="section-symbol" aria-hidden="true">01</span><div><h2 class="card-title">Görev bilgileri</h2><p>Tüm görevler için ortak bilgiler</p></div></div>
-              <div class="grid-2">
+              <div class="grid-2 duty-basics">
                 <label class="field">
                   <span class="field-label">Görev tarihi</span>
                   <input type="date" id="duty-date" class="input">
@@ -180,9 +180,9 @@
                   <span class="field-label">Yakıt türü</span>
                   <div class="segmented" role="radiogroup" aria-label="Yakıt türü">
                     <input type="radio" id="fuel-diesel" name="fuel_type" value="diesel" checked>
-                    <label for="fuel-diesel">🛢 Dizel</label>
+                    <label for="fuel-diesel">Dizel</label>
                     <input type="radio" id="fuel-gasoline" name="fuel_type" value="gasoline">
-                    <label for="fuel-gasoline">⛽ Benzin</label>
+                    <label for="fuel-gasoline">Benzin</label>
                   </div>
                 </div>
               </div>

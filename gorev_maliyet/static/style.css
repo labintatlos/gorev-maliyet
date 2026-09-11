@@ -257,6 +257,14 @@ form h2 { margin: 6px 0 12px; font-size: 22px; letter-spacing: -.03em; }
 .segmented label { display: flex; align-items: center; justify-content: center; margin: 0; border-radius: 9px; font-size: 13.5px; font-weight: 650; color: var(--muted); cursor: pointer; user-select: none; }
 .segmented input:checked + label { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px rgba(15, 23, 42, .14); }
 .segmented input:focus-visible + label { outline: 2px solid var(--accent); }
+.duty-basics { align-items: start; }
+.duty-basics label.field > input { margin-top: 0; min-width: 0; max-width: 100%; height: 50px; padding: 0 12px; }
+.duty-basics .segmented { height: 50px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; }
+.duty-basics .segmented label { min-width: 0; font-size: 15px; }
+.duty-basics .segmented input:checked + label { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+@media (max-width: 600px) {
+  .duty-basics { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
 .stepper { display: inline-flex; align-items: center; height: 46px; padding: 0 3px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
 .stepper button { width: 40px; height: 40px; border: 0; border-radius: 9px; background: transparent; font-size: 22px; font-weight: 600; color: var(--accent); cursor: pointer; }
 .stepper input { width: 52px; border: 0; background: transparent; text-align: center; font-size: 17px; font-weight: 700; outline: none; -moz-appearance: textfield; }
