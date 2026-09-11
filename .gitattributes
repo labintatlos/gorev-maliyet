@@ -1,0 +1,4 @@
+# Eklenti Linux konteynerinde çalışır: betik ve kaynak dosyaları her zaman LF satır sonuyla saklanır.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
