@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.2
+
+- iOS tarih/saat alanlarının kutularından taşmasına yönelik düzeltme: yatay iç boşluk kaldırıldı, doğal kutu görünümü sıfırlandı ve minimum/maksimum genişlik sınırlandı. Tarih ve saat seçicileri korundu. İlgili tarayıcı hatası: [WebKit 301648](https://bugs.webkit.org/show_bug.cgi?id=301648).
+- Tarayıcı kontrolü artık yalnızca sayfa genişliğini değil, tarih/saat ve seçim alanlarının üst kutunun iç sınırlarında kalmasını da denetler.
+- `tools/webkit_check.py` eklendi: açık/koyu temada 320, 368, 390, 768 ve 1280 piksel genişlik; tarih/saat düzenleme, yakıt seçimi ve kayıt akışı. Playwright yalnızca geliştirme aracıdır; eklentiye bağımlılık eklenmedi.
+- Duman, Chrome ve Windows WebKit kontrolleri `errors: 0`. Gerçek iPhone/Safari üzerinde doğrulama yapılmadı.
+
 ## 4.1.1
 
 - Telefonda görev tarihi ve yakıt türü alt alta yerleştirildi; Dizel/Benzin seçimi tam genişlikte eşit iki seçenek olarak düzenlendi. Emojiler kaldırıldı ve seçili yakıtın çerçevesi belirginleştirildi.

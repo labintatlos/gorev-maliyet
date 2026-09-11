@@ -40,6 +40,18 @@ CHROME_CANDIDATES = [
 DEBUG_PORT = 9333
 BASE = smoke.BASE
 
+# Sayfa taşmasa bile bir denetim komşu alana veya kartın iç boşluğuna taşabilir.
+CONTROL_OVERFLOWS = """() => [...document.querySelectorAll(
+    'input[type=date], input[type=time], .segmented, .nudge, .pill-row'
+)].filter(el => el.getClientRects().length).flatMap(el => {
+    const box = el.getBoundingClientRect(), parent = el.parentElement;
+    const bounds = parent.getBoundingClientRect(), style = getComputedStyle(parent);
+    const left = bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+    const right = bounds.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+    return box.left < left - 1 || box.right > right + 1
+        ? [{field: el.id || el.className, left: box.left, right: box.right, bounds: [left, right]}] : [];
+})"""
+
 
 def start_server(work):
     (work / 'market_data.json').write_text(json.dumps(smoke.MARKET), encoding='utf-8')
@@ -150,6 +162,9 @@ class Page:
         overflow = await self.js("document.documentElement.scrollWidth > innerWidth + 1")
         if overflow:
             raise AssertionError(f'Yatay taşma: {path.name}')
+        controls = await self.js(f'({CONTROL_OVERFLOWS})()')
+        if controls:
+            raise AssertionError(f'Alan taşması: {path.name}: {controls}')
         size = (await self.send('Page.getLayoutMetrics'))['cssContentSize']
         clip = {'x': 0, 'y': 0, 'width': size['width'], 'height': min(size['height'], max_height), 'scale': 1}
         data = await self.send('Page.captureScreenshot', format='png', clip=clip, captureBeyondViewport=True)

@@ -258,7 +258,7 @@ form h2 { margin: 6px 0 12px; font-size: 22px; letter-spacing: -.03em; }
 .segmented input:checked + label { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px rgba(15, 23, 42, .14); }
 .segmented input:focus-visible + label { outline: 2px solid var(--accent); }
 .duty-basics { align-items: start; }
-.duty-basics label.field > input { margin-top: 0; min-width: 0; max-width: 100%; height: 50px; padding: 0 12px; }
+.duty-basics label.field > input { margin-top: 0; min-width: 0; max-width: 100%; height: 50px; padding: 0; }
 .duty-basics .segmented { height: 50px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; }
 .duty-basics .segmented label { min-width: 0; font-size: 15px; }
 .duty-basics .segmented input:checked + label { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -287,6 +287,17 @@ form h2 { margin: 6px 0 12px; font-size: 22px; letter-spacing: -.03em; }
 .link-btn { min-height: 32px; padding: 2px 6px; border: 0; background: none; cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--accent); }
 .time-input { width: 100%; height: 52px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); text-align: center; font-size: 24px; font-weight: 750; letter-spacing: .02em; outline: none; }
 .time-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+/* iOS tarih/saat denetimleri padding ile %100 genişliği aşabiliyor
+   (WebKit 301648). Yerel seçiciyi koruyup kutunun görünümünü CSS belirler. */
+input[type="date"], input[type="time"] {
+  -webkit-appearance: none; appearance: none;
+  display: block; box-sizing: border-box; min-width: 0; max-width: 100%;
+  padding: 0; min-inline-size: 0; text-align: center;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0; margin: 0; text-align: center;
+}
 .nudge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .nudge button { min-height: 32px; padding: 0 2px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; }
 .tl-track {
