@@ -114,8 +114,9 @@ def parse_decimal(value: NumberLike) -> Decimal:
         text = text.replace(".", "").replace(",", ".")
     elif text.count(".") == 1:
         left, right = text.split(".")
-        # 105.000 gibi tipik binlik girişini de kabul et.
-        if left.lstrip("+-").isdigit() and right.isdigit() and len(right) == 3 and len(left.lstrip("+-")) <= 3:
+        integer = left.lstrip("+-")
+        # 105.000 gibi tipik binlik girişini de kabul et; 0.745 gibi değerler ondalık kalır.
+        if integer.isdigit() and not integer.startswith("0") and right.isdigit() and len(right) == 3 and len(integer) <= 3:
             text = left + right
     elif text.count(".") > 1:
         text = text.replace(".", "")

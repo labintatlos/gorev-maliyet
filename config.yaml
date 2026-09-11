@@ -1,6 +1,6 @@
 name: "Görev Maliyet Telegram Botu"
 description: "Görev maliyeti hesaplama, otomatik piyasa verileri, Telegram Mini App ve gelişmiş yönetim özellikleri."
-version: "3.6.0"
+version: "3.7.0"
 slug: "gorev_maliyet_bot"
 startup: application
 boot: auto

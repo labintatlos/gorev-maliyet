@@ -1,112 +1,69 @@
-// localStorage ile offline hesaplamaları yönet
+// localStorage: form taslağı, son gönderilen görev ve çevrimdışı gönderim kuyruğu
 
-const DB = {
-  STORAGE_KEY: 'gorev_calculations_pending',
-  SYNC_KEY: 'gorev_last_sync',
+const Store = (function () {
+  'use strict';
 
-  // Yeni hesaplamayı localStorage'a kaydet
-  savePendingCalculation(calculationData) {
+  const KEYS = {
+    draft: 'gm_draft_v3',
+    legacyDraft: 'last_calc_prefs_v2',
+    lastSubmitted: 'gm_last_submitted_v1',
+    queue: 'gorev_calculations_pending',
+  };
+
+  function read(key, fallback) {
     try {
-      const pending = this.getPendingCalculations();
-      const id = Date.now();
-
-      pending.push({
-        id,
-        data: calculationData,
-        timestamp: new Date().toISOString(),
-        synced: false
-      });
-
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(pending));
-      return id;
-    } catch (error) {
-      console.error('Hesaplama kaydedilemedi:', error);
-      return null;
-    }
-  },
-
-  // Pending hesaplamaları al
-  getPendingCalculations() {
-    try {
-      const data = localStorage.getItem(this.STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('Pending hesaplamalar okunamadı:', error);
-      return [];
-    }
-  },
-
-  // Senkronize edilmemiş hesaplamaları al
-  getUnsyncedCalculations() {
-    const pending = this.getPendingCalculations();
-    return pending.filter(calc => !calc.synced);
-  },
-
-  // Hesaplamayı senkronize edildi olarak işaretle
-  markAsSynced(id) {
-    try {
-      const pending = this.getPendingCalculations();
-      const index = pending.findIndex(c => c.id === id);
-
-      if (index !== -1) {
-        pending[index].synced = true;
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(pending));
-      }
-    } catch (error) {
-      console.error('Senkronizasyon işaretlenemedi:', error);
-    }
-  },
-
-  // Senkronize edilen hesaplamaları temizle
-  clearSyncedCalculations() {
-    try {
-      const pending = this.getPendingCalculations();
-      const remaining = pending.filter(calc => !calc.synced);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(remaining));
-    } catch (error) {
-      console.error('Temizleme başarısız:', error);
-    }
-  },
-
-  // Son senkronizasyon zamanını al
-  getLastSyncTime() {
-    try {
-      return localStorage.getItem(this.SYNC_KEY);
-    } catch (error) {
-      console.error('Son sinkron saati okunamadı:', error);
-      return null;
-    }
-  },
-
-  // Son senkronizasyon zamanını güncelle
-  setLastSyncTime() {
-    try {
-      localStorage.setItem(this.SYNC_KEY, new Date().toISOString());
-    } catch (error) {
-      console.error('Son sinkron saati yazılamadı:', error);
-    }
-  },
-
-  // Tüm verileri temizle
-  clearAll() {
-    try {
-      localStorage.removeItem(this.STORAGE_KEY);
-      localStorage.removeItem(this.SYNC_KEY);
-    } catch (error) {
-      console.error('Veriler silinmedi:', error);
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (err) {
+      return fallback;
     }
   }
-};
 
-// Service Worker kayıt et
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(registration => {
-        console.log('Service Worker başarıyla kayıtlandı:', registration);
-      })
-      .catch(error => {
-        console.log('Service Worker kaydı başarısız:', error);
-      });
-  });
-}
+  function write(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (err) {
+      console.error('Yerel kayıt yazılamadı:', err);
+      return false;
+    }
+  }
+
+  function getQueue() {
+    const queue = read(KEYS.queue, []);
+    // v3.6 kuyruğunda "synced" işaretli kayıtlar gönderilmiş sayılır.
+    return Array.isArray(queue) ? queue.filter((item) => item && item.data && !item.synced) : [];
+  }
+
+  return {
+    loadDraft() {
+      return read(KEYS.draft, null) || read(KEYS.legacyDraft, null);
+    },
+    saveDraft(draft) {
+      return write(KEYS.draft, draft);
+    },
+    loadLastSubmitted() {
+      return read(KEYS.lastSubmitted, null);
+    },
+    saveLastSubmitted(payload) {
+      return write(KEYS.lastSubmitted, payload);
+    },
+    getQueue,
+    enqueue(payload) {
+      const queue = getQueue();
+      const id = Date.now();
+      queue.push({ id, data: payload, timestamp: new Date().toISOString() });
+      return write(KEYS.queue, queue) ? id : null;
+    },
+    removeFromQueue(ids) {
+      const remove = new Set(ids);
+      return write(KEYS.queue, getQueue().filter((item) => !remove.has(item.id)));
+    },
+    replaceQueue(queue) {
+      return write(KEYS.queue, queue);
+    },
+    clearQueue() {
+      return write(KEYS.queue, []);
+    },
+  };
+})();

@@ -1,610 +1,911 @@
-// Telegram WebApp Görev Maliyet Hesaplayıcı
+// Telegram Mini App — Görev Maliyet Hesaplayıcı (v3.7)
 
-const tg = window.Telegram?.WebApp;
+(function () {
+  'use strict';
 
-// Density constants
-const DIESEL_DENSITY = 0.82;
-const GASOLINE_DENSITY = 0.745;
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const IN_TELEGRAM = Boolean(tg && tg.platform && tg.platform !== 'unknown');
+  const C = window.GorevCalc;
 
-// Haptic feedback helper
-function haptic(type = 'light') {
-  try {
-    if (tg?.HapticFeedback) {
-      if (type === 'success' || type === 'error' || type === 'warning') {
-        tg.HapticFeedback.notificationOccurred(type);
-      } else {
-        tg.HapticFeedback.impactOccurred(type);
+  const MAX_DUTIES = 12;
+  const DEFAULT_DUTY = { departure: '09:35', arrival: '19:25', fuel_liters: 750 };
+  const FUEL_LABELS = { diesel: 'Dizel', gasoline: 'Benzin' };
+  const PRICE_LABELS = { diesel: 'motorin', gasoline: 'benzin' };
+  const NUDGES = [-60, -15, -5, 5, 15, 60];
+
+  const $ = (selector, root) => (root || document).querySelector(selector);
+  const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
+  const reducedMotion = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // ---------- Telegram yardımcıları ----------
+  function haptic(type) {
+    try {
+      const feedback = IN_TELEGRAM && tg.HapticFeedback;
+      if (!feedback) return;
+      if (type === 'success' || type === 'error' || type === 'warning') feedback.notificationOccurred(type);
+      else if (type === 'selection') feedback.selectionChanged();
+      else feedback.impactOccurred(type || 'light');
+    } catch (err) {
+      // Eski istemcilerde titreşim desteklenmeyebilir.
+    }
+  }
+
+  function showAlert(message) {
+    if (IN_TELEGRAM && tg.showAlert) {
+      try {
+        tg.showAlert(message);
+        return;
+      } catch (err) {
+        // Tarayıcı uyarısına düş.
       }
     }
-  } catch (e) {
-    // Ignore haptic errors on unsupported platforms
+    window.alert(message);
   }
-}
 
-// Format number to 2 decimals
-function formatNumber(num) {
-  return Number(num).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-}
-
-// Current date as YYYY-MM-DD
-function getTodayString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-// Current time as HH:MM
-function getCurrentTimeString(dateObj = new Date()) {
-  const hours = String(dateObj.getHours()).padStart(2, '0');
-  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
-}
-
-// Calculate duration between HH:MM strings
-function getDurationMinutes(depStr, arrStr) {
-  if (!depStr || !arrStr) return 0;
-  const [h1, m1] = depStr.split(':').map(Number);
-  const [h2, m2] = arrStr.split(':').map(Number);
-  
-  let depTotal = h1 * 60 + m1;
-  let arrTotal = h2 * 60 + m2;
-  
-  if (arrTotal < depTotal) {
-    arrTotal += 24 * 60; // Next day
-  }
-  return arrTotal - depTotal;
-}
-
-function formatDurationText(dep, arr) {
-  if (!dep || !arr) return '0 SA 00 DA';
-  const totalMinutes = getDurationMinutes(dep, arr);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${h} SA ${String(m).padStart(2, '0')} DA`;
-}
-
-function getFuelKgText(liters) {
-  const fuelType = document.querySelector('input[name="fuel_type"]:checked')?.value || 'diesel';
-  const density = fuelType === 'gasoline' ? GASOLINE_DENSITY : DIESEL_DENSITY;
-  const l = parseFloat(liters) || 0;
-  const kg = (l * density).toFixed(1);
-  return `Yaklaşık ~${formatNumber(kg)} kg`;
-}
-
-// Global State
-let nextDutyId = 1;
-let duties = [
-  { id: 1, departure: '09:35', arrival: '19:25', fuel_liters: 750 }
-];
-
-// DOM Elements
-const dutyDateInput = document.getElementById('duty-date');
-const btnSubmit = document.getElementById('btn-submit');
-const btnAddDuty = document.getElementById('btn-add-duty');
-
-// Personnel helpers
-function adjustPersonnel(delta) {
-  haptic('selection');
-  const input = document.getElementById('personnel');
-  let val = (parseInt(input.value, 10) || 4) + delta;
-  input.value = Math.max(1, Math.min(50, val));
-  savePreferences();
-}
-
-function setPersonnel(val) {
-  haptic('medium');
-  document.getElementById('personnel').value = val;
-  savePreferences();
-}
-
-// Duty Item Helpers
-function setDutyFieldNow(id, field) {
-  haptic('medium');
-  const d = duties.find(item => item.id === id);
-  if (!d) return;
-  d[field] = getCurrentTimeString();
-  renderDuties();
-  savePreferences();
-}
-
-function adjustDutyTime(id, field, deltaMinutes) {
-  haptic('selection');
-  const d = duties.find(item => item.id === id);
-  if (!d) return;
-  let [h, m] = (d[field] || '12:00').split(':').map(Number);
-  let total = (h * 60 + m + deltaMinutes) % (24 * 60);
-  if (total < 0) total += 24 * 60;
-  const newH = Math.floor(total / 60);
-  const newM = total % 60;
-  d[field] = `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
-  renderDuties();
-  savePreferences();
-}
-
-function updateDutyTime(id, field, value) {
-  const d = duties.find(item => item.id === id);
-  if (d) {
-    d[field] = value;
-    const durElem = document.getElementById(`calc-duration-${id}`);
-    if (durElem) {
-      durElem.textContent = formatDurationText(d.departure, d.arrival);
+  function confirmAction(message, onConfirm) {
+    if (IN_TELEGRAM && tg.showConfirm) {
+      try {
+        tg.showConfirm(message, (ok) => ok && onConfirm());
+        return;
+      } catch (err) {
+        // Tarayıcı onayına düş.
+      }
     }
-    savePreferences();
-    updateCostSummary();
+    if (window.confirm(message)) onConfirm();
   }
-}
 
-function updateDutyFuel(id, value) {
-  const d = duties.find(item => item.id === id);
-  if (d) {
-    d.fuel_liters = value;
-    const kgElem = document.getElementById(`fuel-kg-preview-${id}`);
-    if (kgElem) {
-      kgElem.textContent = getFuelKgText(value);
-    }
-    savePreferences();
-    updateCostSummary();
+  let toastTimer = null;
+  function toast(message, tone) {
+    const el = $('#toast');
+    el.textContent = message;
+    el.dataset.tone = tone || 'info';
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
   }
-}
 
-function adjustDutyFuel(id, delta) {
-  haptic('selection');
-  const d = duties.find(item => item.id === id);
-  if (!d) return;
-  let val = (parseFloat(d.fuel_liters) || 0) + delta;
-  d.fuel_liters = Math.max(0, val);
-  renderDuties();
-  savePreferences();
-}
+  // ---------- Tarih ve biçim ----------
+  const pad = (value) => String(value).padStart(2, '0');
+  const todayISO = (date) => {
+    const d = date || new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const minutesOfDay = (date) => date.getHours() * 60 + date.getMinutes();
+  const formatDateTR = (iso) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : '—';
+  };
+  const clockDuration = (minutes) => `${Math.floor(minutes / 60)}:${pad(minutes % 60)}`;
+  const money = (value, decimals) => `₺${C.formatMoney(value, decimals)}`;
 
-function addDuty() {
-  haptic('medium');
-  nextDutyId++;
-  const lastDuty = duties[duties.length - 1];
-  let dep = lastDuty ? lastDuty.arrival : '12:00';
-  let [h, m] = dep.split(':').map(Number);
-  let totalArr = (h * 60 + m + 120) % (24 * 60);
-  let arr = `${String(Math.floor(totalArr / 60)).padStart(2, '0')}:${String(totalArr % 60).padStart(2, '0')}`;
-  
-  duties.push({
-    id: nextDutyId,
-    departure: dep,
-    arrival: arr,
-    fuel_liters: 250
-  });
-  renderDuties();
-  savePreferences();
-}
-
-function removeDuty(id) {
-  haptic('warning');
-  duties = duties.filter(item => item.id !== id);
-  if (duties.length === 0) {
-    nextDutyId = 1;
-    duties.push({ id: 1, departure: '09:35', arrival: '19:25', fuel_liters: 750 });
-  }
-  renderDuties();
-  savePreferences();
-}
-
-// Render dynamic duty cards
-function renderDuties() {
-  const container = document.getElementById('duties-container');
-  if (!container) return;
-
-  container.innerHTML = duties.map((duty, index) => {
-    const dutyNum = index + 1;
-    const isRemovable = duties.length > 1;
-    return `
-      <section class="section card duty-card" id="duty-card-${duty.id}">
-        <div class="duty-card-header">
-          <div class="section-title">⛵ ${dutyNum}. Görev</div>
-          ${isRemovable ? `
-            <button type="button" class="btn-remove-duty" onclick="removeDuty(${duty.id})">
-              <span>✕ Görevi Sil</span>
-            </button>
-          ` : ''}
-        </div>
-
-        <div class="time-grid">
-          <!-- Avara -->
-          <div class="time-card">
-            <div class="time-header">
-              <span class="time-label">🚀 Avara (Kalkış)</span>
-              <button type="button" class="btn-mini" onclick="setDutyFieldNow(${duty.id}, 'departure')">Şimdi</button>
-            </div>
-            <input type="time" class="time-input" value="${duty.departure}" onchange="updateDutyTime(${duty.id}, 'departure', this.value)" required>
-            <div class="time-helpers">
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'departure', -5)">-5dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'departure', -15)">-15dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'departure', -60)">-1sa</button>
-            </div>
-            <div class="time-helpers" style="margin-top: 4px;">
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'departure', 5)">+5dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'departure', 15)">+15dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'departure', 60)">+1sa</button>
-            </div>
-          </div>
-
-          <!-- Aborda -->
-          <div class="time-card">
-            <div class="time-header">
-              <span class="time-label">⚓ Aborda (Varış)</span>
-              <button type="button" class="btn-mini" onclick="setDutyFieldNow(${duty.id}, 'arrival')">Şimdi</button>
-            </div>
-            <input type="time" class="time-input" value="${duty.arrival}" onchange="updateDutyTime(${duty.id}, 'arrival', this.value)" required>
-            <div class="time-helpers">
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'arrival', -5)">-5dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'arrival', -15)">-15dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'arrival', -60)">-1sa</button>
-            </div>
-            <div class="time-helpers" style="margin-top: 4px;">
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'arrival', 5)">+5dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'arrival', 15)">+15dk</button>
-              <button type="button" class="helper-btn" onclick="adjustDutyTime(${duty.id}, 'arrival', 60)">+1sa</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Live Duration Display -->
-        <div class="duration-badge">
-          <span class="badge-icon">⏱</span>
-          <span>${dutyNum}. Görev Süresi: <strong id="calc-duration-${duty.id}">${formatDurationText(duty.departure, duty.arrival)}</strong></span>
-        </div>
-
-        <hr class="divider">
-
-        <!-- Fuel Liters -->
-        <div class="stepper-row">
-          <div class="stepper-label">
-            <strong>Harcanan Yakıt</strong>
-            <small id="fuel-kg-preview-${duty.id}">${getFuelKgText(duty.fuel_liters)}</small>
-          </div>
-          <div class="stepper-control fuel-stepper">
-            <input type="number" class="step-input fuel-input" value="${duty.fuel_liters}" min="0" step="10" onchange="updateDutyFuel(${duty.id}, this.value)" oninput="updateDutyFuel(${duty.id}, this.value)">
-            <span class="unit-tag">Litre</span>
-          </div>
-        </div>
-
-        <div class="quick-nums" style="margin-bottom: 4px;">
-          <button type="button" class="quick-num-btn" onclick="adjustDutyFuel(${duty.id}, -5)">−5L</button>
-          <button type="button" class="quick-num-btn" onclick="adjustDutyFuel(${duty.id}, -15)">−15L</button>
-          <button type="button" class="quick-num-btn" onclick="adjustDutyFuel(${duty.id}, -50)">−50L</button>
-        </div>
-        <div class="quick-nums">
-          <button type="button" class="quick-num-btn" onclick="adjustDutyFuel(${duty.id}, 5)">+5L</button>
-          <button type="button" class="quick-num-btn" onclick="adjustDutyFuel(${duty.id}, 15)">+15L</button>
-          <button type="button" class="quick-num-btn" onclick="adjustDutyFuel(${duty.id}, 50)">+50L</button>
-        </div>
-      </section>
-    `;
-  }).join('');
-
-  updateCostSummary();
-}
-
-// Save form values to localStorage
-function savePreferences() {
-  try {
-    const data = {
-      personnel: document.getElementById('personnel')?.value || '4',
-      fuel_type: document.querySelector('input[name="fuel_type"]:checked')?.value || 'diesel',
-      duties: duties,
+  // ---------- Bot tarafından adrese eklenen önizleme verileri ----------
+  const market = (function readMarketParams() {
+    const query = new URLSearchParams(window.location.search);
+    const number = (key) => {
+      const raw = query.get(key);
+      if (raw === null || raw === '') return null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value >= 0 ? value : null;
     };
-    localStorage.setItem('last_calc_prefs_v2', JSON.stringify(data));
-  } catch (e) {
-    // Ignore localStorage errors
-  }
-}
+    const dataDate = query.get('tarih') || '';
+    return {
+      eur: number('eur'),
+      diesel: number('dz'),
+      gasoline: number('bz'),
+      salary: number('maas'),
+      amort: number('amort') === null ? 70 : number('amort'),
+      fuelProvince: (query.get('il') || '').slice(0, 40),
+      solarProvince: (query.get('gil') || '').slice(0, 40),
+      sunrise: C.sanitizeTime(query.get('gd'), null),
+      sunset: C.sanitizeTime(query.get('gb'), null),
+      dataDate: /^\d{4}-\d{2}-\d{2}$/.test(dataDate) ? dataDate : null,
+    };
+  })();
 
-// Load saved values
-function loadPreferences() {
-  try {
-    const raw = localStorage.getItem('last_calc_prefs_v2');
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (data.personnel) {
-        const pInput = document.getElementById('personnel');
-        if (pInput) pInput.value = data.personnel;
-      }
-      if (data.fuel_type) {
-        const radio = document.querySelector(`input[name="fuel_type"][value="${data.fuel_type}"]`);
-        if (radio) radio.checked = true;
-      }
-      if (data.duties && Array.isArray(data.duties) && data.duties.length > 0) {
-        duties = data.duties;
-        nextDutyId = Math.max(...duties.map(d => d.id || 1), 1);
-      }
-    }
-  } catch (e) {
-    // Ignore
-  }
-}
-
-// Submit data to Telegram
-function submitData() {
-  const personnel = parseInt(document.getElementById('personnel').value, 10);
-  const fuel_type = document.querySelector('input[name="fuel_type"]:checked')?.value || 'diesel';
-  const duty_date = dutyDateInput.value || getTodayString();
-
-  if (isNaN(personnel) || personnel < 1) {
-    haptic('error');
-    if (tg?.showAlert) tg.showAlert('Geçerli bir personel sayısı girin.');
-    return;
-  }
-
-  for (let i = 0; i < duties.length; i++) {
-    const d = duties[i];
-    if (!d.departure || !d.arrival) {
-      haptic('error');
-      const msg = `Lütfen ${i + 1}. Görev için Avara ve Aborda saatlerini girin.`;
-      if (tg?.showAlert) tg.showAlert(msg); else alert(msg);
-      return;
-    }
-    const fl = parseFloat(d.fuel_liters);
-    if (isNaN(fl) || fl < 0) {
-      haptic('error');
-      const msg = `Lütfen ${i + 1}. Görev için geçerli bir yakıt miktarı girin.`;
-      if (tg?.showAlert) tg.showAlert(msg); else alert(msg);
-      return;
-    }
-  }
-
-  savePreferences();
-  haptic('success');
-
-  const payload = {
-    duties: duties.map(d => ({
-      departure: d.departure,
-      arrival: d.arrival,
-      fuel_liters: parseFloat(d.fuel_liters) || 0
-    })),
-    // Backward compatibility for single duty:
-    departure: duties[0]?.departure || '',
-    arrival: duties[0]?.arrival || '',
-    fuel_liters: parseFloat(duties[0]?.fuel_liters) || 0,
-    personnel,
-    fuel_type,
-    duty_date,
+  // ---------- Durum ----------
+  const state = {
+    dutyDate: todayISO(),
+    fuelType: 'diesel',
+    personnel: 4,
+    duties: [],
+    nextId: 1,
   };
 
-  // If running inside Telegram WebApp
-  if (tg && tg.sendData) {
-    tg.sendData(JSON.stringify(payload));
+  const fuelPrice = () => (state.fuelType === 'gasoline' ? market.gasoline : market.diesel);
+  const hasPricing = () => market.eur !== null && market.salary !== null && fuelPrice() !== null;
+  const hasSun = () => market.sunrise !== null && market.sunset !== null;
 
-    // sendData closes the app immediately. If it's still open, it means it failed
-    setTimeout(() => {
-      if (tg.showAlert) {
-        tg.showAlert("Hata: Veri gönderilemedi!\n\nLütfen Mini Uygulamayı doğrudan sohbet klavyesinin altındaki '📱 Mini App Aç' butonuna basarak açın.");
-      }
-    }, 600);
-  } else if (navigator.onLine) {
-    // Online: Telegram WebApp yoksa standart alert göster
-    alert('Hesaplama Verisi Hazırlandı:\n' + JSON.stringify(payload, null, 2) + '\n\nTelegram içinde bu form bota doğrudan iletilir.');
-  } else {
-    // Offline: localStorage'a kaydet
-    const calcId = DB.savePendingCalculation(payload);
-    if (calcId) {
-      haptic('success');
-      if (tg?.showAlert) {
-        tg.showAlert(`✓ Hesaplama kaydedildi!\n\nİnternet bağlantısı sağlandığında otomatik olarak gönderilecek.\n\nKayıt #${calcId}`);
-      } else {
-        alert(`✓ Hesaplama kaydedildi! İnternet bağlantısı kurulduğunda otomatik gönderilecek.`);
-      }
-    } else {
-      haptic('error');
-      if (tg?.showAlert) {
-        tg.showAlert('Hata: Hesaplama kaydedilemedi.');
-      } else {
-        alert('Hata: Hesaplama kaydedilemedi.');
-      }
-    }
+  function sanitizeFuel(value) {
+    const n = Number(String(value).replace(',', '.'));
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
   }
-}
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-  // Telegram WebApp setup
-  if (tg) {
-    tg.ready();
-    tg.expand();
-    
-    // FOOLPROOF SHIELD: If initData is present, it was NOT launched from a keyboard button.
-    if (tg.initData) {
-      document.body.innerHTML = `
-        <div style="padding: 40px 20px; text-align: center;">
-          <div style="font-size: 60px; margin-bottom: 20px;">⚠️</div>
-          <h2 style="color: var(--text-color); margin-bottom: 15px;">Hatalı Giriş Saptandı</h2>
-          <p style="color: var(--hint-color); font-size: 15px; line-height: 1.5; margin-bottom: 25px;">
-            Telegram güvenlik kuralları gereği uygulamanın veri gönderebilmesi için <b>Klavye Butonu</b> üzerinden açılması zorunludur.
-          </p>
-          <div style="background: var(--secondary-bg-color); padding: 15px; border-radius: 12px; border: 1px solid var(--card-border);">
-            <strong style="display:block; margin-bottom: 8px;">Nasıl Düzeltebilirim?</strong>
-            1. Uygulamayı sağ üstten kapatın.<br><br>
-            2. Sohbete <b>/start</b> yazın.<br><br>
-            3. Ekranın en altındaki (klavye kısmındaki) devasa <b>📱 Mini App Aç</b> butonuna basın.
+  function sanitizePersonnel(value) {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? Math.min(50, Math.max(1, n)) : 4;
+  }
+
+  function makeDuty(values) {
+    const source = values || {};
+    return {
+      id: state.nextId++,
+      departure: C.sanitizeTime(source.departure, DEFAULT_DUTY.departure),
+      arrival: C.sanitizeTime(source.arrival, DEFAULT_DUTY.arrival),
+      fuel_liters: source.fuel_liters == null ? DEFAULT_DUTY.fuel_liters : sanitizeFuel(source.fuel_liters),
+    };
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return false;
+    state.personnel = sanitizePersonnel(snapshot.personnel);
+    state.fuelType = snapshot.fuel_type === 'gasoline' ? 'gasoline' : 'diesel';
+    const list = Array.isArray(snapshot.duties) ? snapshot.duties.slice(0, MAX_DUTIES) : [];
+    state.nextId = 1;
+    state.duties = list.length ? list.map(makeDuty) : [makeDuty(DEFAULT_DUTY)];
+    return true;
+  }
+
+  function snapshot() {
+    return {
+      personnel: state.personnel,
+      fuel_type: state.fuelType,
+      duties: state.duties.map(({ departure, arrival, fuel_liters }) => ({ departure, arrival, fuel_liters })),
+    };
+  }
+
+  const saveDraft = () => Store.saveDraft(snapshot());
+  const findDuty = (id) => state.duties.find((duty) => String(duty.id) === String(id));
+
+  // ---------- Hesap ----------
+  function dutyMetrics(duty) {
+    const minutes = C.durationMinutes(duty.departure, duty.arrival);
+    return {
+      minutes,
+      kg: duty.fuel_liters * C.DENSITY[state.fuelType],
+      light: hasSun() ? C.splitDaylight(duty.departure, duty.arrival, market.sunrise, market.sunset) : null,
+      cost: hasPricing()
+        ? C.calculate({
+            minutes,
+            eur: market.eur,
+            salary: market.salary,
+            personnel: state.personnel,
+            liters: duty.fuel_liters,
+            price: fuelPrice(),
+            fuelType: state.fuelType,
+            dailyAmortEur: market.amort,
+          })
+        : null,
+    };
+  }
+
+  function totals() {
+    const sum = { minutes: 0, liters: 0, day: 0, night: 0, amortization: 0, personnelCost: 0, fuelCost: 0, total: 0 };
+    state.duties.forEach((duty) => {
+      const metrics = dutyMetrics(duty);
+      sum.minutes += metrics.minutes;
+      sum.liters += duty.fuel_liters;
+      if (metrics.light) {
+        sum.day += metrics.light.day;
+        sum.night += metrics.light.night;
+      }
+      if (metrics.cost) {
+        sum.amortization += metrics.cost.amortization;
+        sum.personnelCost += metrics.cost.personnelCost;
+        sum.fuelCost += metrics.cost.fuelCost;
+        sum.total += metrics.cost.total;
+      }
+    });
+    return sum;
+  }
+
+  // ---------- Görev kartları ----------
+  function nudgeLabel(delta) {
+    const sign = delta < 0 ? '−' : '+';
+    return Math.abs(delta) === 60 ? `${sign}1 sa` : `${sign}${Math.abs(delta)}`;
+  }
+
+  function timeBox(field, icon, label) {
+    return `
+      <div class="time-box">
+        <div class="time-box-head">
+          <span>${icon} ${label}</span>
+          <button type="button" class="link-btn" data-action="now" data-field="${field}">Şimdi</button>
+        </div>
+        <input type="time" class="time-input num" data-field="${field}" aria-label="${label} saati">
+        <div class="nudge">
+          ${NUDGES.map((d) => `<button type="button" data-action="nudge" data-field="${field}" data-delta="${d}">${nudgeLabel(d)}</button>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  function dutyTemplate(duty, index) {
+    const removable = state.duties.length > 1;
+    const sunStyle = hasSun()
+      ? ` style="--sr:${((C.parseTime(market.sunrise) / C.DAY_MINUTES) * 100).toFixed(2)}%;--ss:${((C.parseTime(market.sunset) / C.DAY_MINUTES) * 100).toFixed(2)}%"`
+      : '';
+    return `
+      <article class="card duty" data-id="${duty.id}">
+        <header class="duty-head">
+          <div class="duty-title"><span class="duty-num num">${index + 1}</span>Görev</div>
+          <div class="duty-actions">
+            <span class="badge num" data-role="duration"></span>
+            ${removable ? `<button type="button" class="icon-btn" data-action="remove" aria-label="${index + 1}. görevi sil">✕</button>` : ''}
+          </div>
+        </header>
+        <div class="grid-2">
+          ${timeBox('departure', '🚀', 'Avara')}
+          ${timeBox('arrival', '⚓', 'Aborda')}
+        </div>
+        <div class="timeline" aria-hidden="true">
+          <div class="tl-track${hasSun() ? '' : ' no-sun'}"${sunStyle}><div data-role="segments"></div></div>
+          <div class="tl-scale">
+            <span style="left:0">00</span><span style="left:25%">06</span><span style="left:50%">12</span><span style="left:75%">18</span><span style="left:100%">24</span>
           </div>
         </div>
-      `;
-      if (tg.MainButton) tg.MainButton.hide();
+        <div class="fuel-row">
+          <div>
+            <span class="field-label">Harcanan yakıt</span>
+            <small class="hint num" data-role="kg"></small>
+          </div>
+          <div class="stepper wide">
+            <button type="button" data-action="fuel" data-delta="-5" aria-label="5 litre azalt">−</button>
+            <input type="number" class="num" data-field="fuel_liters" inputmode="decimal" min="0" step="any" aria-label="Yakıt litresi">
+            <span class="unit">L</span>
+            <button type="button" data-action="fuel" data-delta="5" aria-label="5 litre artır">+</button>
+          </div>
+        </div>
+        <div class="pill-row">
+          ${[-50, -15, 15, 50].map((d) => `<button type="button" class="pill" data-action="fuel" data-delta="${d}">${d < 0 ? '−' : '+'}${Math.abs(d)} L</button>`).join('')}
+        </div>
+        <footer class="duty-foot" data-role="foot">
+          <span class="hint num" data-role="light"></span>
+          <strong class="num" data-role="cost"></strong>
+        </footer>
+      </article>`;
+  }
+
+  function renderDuties(options) {
+    const container = $('#duties');
+    container.innerHTML = state.duties.map(dutyTemplate).join('');
+    if (options && options.animateId) {
+      const card = $(`.duty[data-id="${options.animateId}"]`);
+      if (card) card.classList.add('enter');
+    }
+    state.duties.forEach(refreshDuty);
+    refreshSummary();
+  }
+
+  function refreshDuty(duty) {
+    const card = $(`.duty[data-id="${duty.id}"]`);
+    if (!card) return;
+    const metrics = dutyMetrics(duty);
+
+    $$('[data-field]', card).forEach((input) => {
+      if (document.activeElement === input) return; // yazarken imleci bozma
+      input.value = input.dataset.field === 'fuel_liters' ? String(duty.fuel_liters) : duty[input.dataset.field];
+    });
+
+    card.classList.toggle('is-invalid', metrics.minutes === 0);
+    $('[data-role="duration"]', card).textContent = metrics.minutes === 0 ? 'Süre 0' : C.formatDuration(metrics.minutes);
+    $('[data-role="kg"]', card).textContent = `≈ ${C.formatNumber(metrics.kg, 0)} kg ${FUEL_LABELS[state.fuelType].toLowerCase()}`;
+
+    const start = C.parseTime(duty.departure);
+    const segments = [];
+    if (start !== null && metrics.minutes > 0) {
+      const end = start + metrics.minutes;
+      segments.push([start, Math.min(end, C.DAY_MINUTES)]);
+      if (end > C.DAY_MINUTES) segments.push([0, end - C.DAY_MINUTES]);
+    }
+    const pct = (value) => `${((value / C.DAY_MINUTES) * 100).toFixed(3)}%`;
+    $('[data-role="segments"]', card).innerHTML = segments
+      .map(([from, to]) => `<span class="tl-seg" style="left:${pct(from)};width:${pct(to - from)}"></span>`)
+      .join('');
+
+    $('[data-role="light"]', card).textContent = metrics.light
+      ? `☀️ ${C.formatDuration(metrics.light.day)} · 🌙 ${C.formatDuration(metrics.light.night)}`
+      : '';
+    $('[data-role="cost"]', card).textContent = metrics.cost ? `≈ ${money(metrics.cost.total)}` : '';
+    $('[data-role="foot"]', card).hidden = !metrics.light && !metrics.cost;
+  }
+
+  function commitDuty(duty) {
+    refreshDuty(duty);
+    refreshSummary();
+    saveDraft();
+  }
+
+  function addDuty() {
+    if (state.duties.length >= MAX_DUTIES) {
+      toast(`En fazla ${MAX_DUTIES} görev eklenebilir.`, 'warn');
+      return;
+    }
+    const last = state.duties[state.duties.length - 1];
+    const departure = last ? last.arrival : '12:00';
+    const duty = makeDuty({
+      departure,
+      arrival: C.formatTime(C.parseTime(departure) + 120),
+      fuel_liters: 250,
+    });
+    state.duties.push(duty);
+    haptic('medium');
+    renderDuties({ animateId: duty.id });
+    saveDraft();
+    const card = $(`.duty[data-id="${duty.id}"]`);
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+  }
+
+  function removeDuty(id) {
+    if (state.duties.length <= 1) return;
+    haptic('warning');
+    state.duties = state.duties.filter((duty) => String(duty.id) !== String(id));
+    saveDraft();
+    const card = $(`.duty[data-id="${id}"]`);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      renderDuties();
+    };
+    if (card && !reducedMotion()) {
+      card.classList.add('leave');
+      card.addEventListener('animationend', finish, { once: true });
+      setTimeout(finish, 350);
+    } else {
+      finish();
+    }
+  }
+
+  function flagDuty(id) {
+    const card = $(`.duty[data-id="${id}"]`);
+    if (!card) return;
+    card.classList.remove('shake');
+    void card.offsetWidth; // animasyonu yeniden başlat
+    card.classList.add('shake');
+    if (card.scrollIntoView) card.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' });
+  }
+
+  // ---------- Özet, üst bilgi, butonlar ----------
+  let lastTotalText = '';
+
+  function refreshSummary() {
+    const sum = totals();
+    const priced = hasPricing();
+    const count = state.duties.length;
+
+    $('#sum-label').textContent = priced ? 'Tahmini toplam maliyet' : 'Toplam görev süresi';
+    $('#sum-count').textContent = `${count} görev`;
+    const totalText = priced ? money(sum.total) : C.formatDuration(sum.minutes);
+    const totalEl = $('#sum-total');
+    if (totalText !== lastTotalText) {
+      totalEl.textContent = totalText;
+      if (lastTotalText && !reducedMotion()) {
+        totalEl.classList.remove('bump');
+        void totalEl.offsetWidth;
+        totalEl.classList.add('bump');
+      }
+      lastTotalText = totalText;
+    }
+
+    $('#sum-priced').hidden = !priced;
+    if (priced) {
+      [
+        ['amort', sum.amortization],
+        ['pers', sum.personnelCost],
+        ['fuel', sum.fuelCost],
+      ].forEach(([key, value]) => {
+        const share = C.percent(value, sum.total);
+        $(`#bar-${key}`).style.width = `${share}%`;
+        $(`#lg-${key}`).textContent = money(value);
+        $(`#pc-${key}`).textContent = `%${C.formatNumber(share, 1)}`;
+      });
+    }
+
+    const hours = sum.minutes / 60;
+    $('#st-duration').textContent = C.formatDuration(sum.minutes);
+    $('#st-fuel').textContent = `${C.formatNumber(sum.liters)} L`;
+    if (priced) {
+      $('#st-3-label').textContent = 'Saatlik ortalama';
+      $('#st-3').textContent = hours > 0 ? money(sum.total / hours, 0) : '—';
+    } else {
+      $('#st-3-label').textContent = 'Personel';
+      $('#st-3').textContent = `${state.personnel} kişi`;
+    }
+    if (hasSun()) {
+      $('#st-4-label').textContent = 'Gündüz / gece';
+      $('#st-4').textContent = `☀️ ${clockDuration(sum.day)} · 🌙 ${clockDuration(sum.night)}`;
+    } else {
+      $('#st-4-label').textContent = 'Yakıt verimi';
+      $('#st-4').textContent = hours > 0 ? `${C.formatNumber(sum.liters / hours, 1)} L/sa` : '—';
+    }
+
+    if (priced) {
+      const province = market.fuelProvince ? `${market.fuelProvince} ` : '';
+      const dated = market.dataDate ? ` · ${formatDateTR(market.dataDate)} verisi` : '';
+      $('#sum-note').textContent = `${province}${PRICE_LABELS[state.fuelType]} ${money(fuelPrice())}/L · Euro ${money(market.eur)} · ${state.personnel} kişi${dated}`;
+    } else {
+      $('#sum-note').textContent = 'Maliyet önizlemesi için Mini App\'i sohbetteki 📱 Mini App Aç klavye butonundan açın.';
+    }
+
+    $$('#personnel-presets .pill').forEach((pill) => {
+      pill.classList.toggle('active', Number(pill.dataset.personnel) === state.personnel);
+    });
+
+    updateMainButton(sum);
+  }
+
+  function updateMainButton(sum) {
+    let label;
+    if (!Sync.isOnline()) label = '💾 ÇEVRİMDIŞI KAYDET';
+    else if (hasPricing()) label = `✅ HESAPLA · ${money(sum.total, 0)}`;
+    else label = state.duties.length > 1 ? `✅ ${state.duties.length} GÖREVİ HESAPLA` : '✅ HESAPLA VE GÖNDER';
+    if (IN_TELEGRAM && tg.MainButton) tg.MainButton.setText(label);
+    $('#btn-submit-label').textContent = label;
+  }
+
+  function showNotice(text) {
+    $('#notice-text').textContent = text || '';
+    $('#notice').hidden = !text;
+  }
+
+  function renderMarket() {
+    const strip = $('#market-strip');
+    const anyData = market.eur !== null || market.salary !== null || fuelPrice() !== null;
+    strip.hidden = !anyData;
+    $('#mk-eur').textContent = market.eur !== null ? money(market.eur) : '—';
+    $('#mk-fuel-label').textContent = PRICE_LABELS[state.fuelType];
+    $('#mk-fuel-label').parentElement.title = market.fuelProvince ? `${market.fuelProvince} ${PRICE_LABELS[state.fuelType]}` : '';
+    $('#mk-fuel').textContent = fuelPrice() !== null ? money(fuelPrice()) : '—';
+    $('#mk-salary').textContent = market.salary !== null ? money(market.salary, 0) : '—';
+
+    if (hasSun()) {
+      const place = market.solarProvince ? `${market.solarProvince} · ` : '';
+      $('#hero-sub').textContent = `${place}🌅 ${market.sunrise} · 🌇 ${market.sunset}`;
+    }
+
+    if (!anyData && IN_TELEGRAM) {
+      showNotice('Maliyet önizlemesi kapalı. Sohbete /start yazıp klavyedeki 📱 Mini App Aç butonuyla yeniden açın.');
+    } else if (market.dataDate) {
+      const days = Math.round((Date.parse(todayISO()) - Date.parse(market.dataDate)) / 86400000);
+      showNotice(days >= 2 ? `Önizleme fiyatları ${days} gün önceye ait. Güncellemek için sohbete /start yazın.` : '');
+    }
+  }
+
+  function renderNet() {
+    const online = Sync.isOnline();
+    const pill = $('#net-pill');
+    pill.dataset.state = online ? 'online' : 'offline';
+    $('#net-label').textContent = online ? 'Çevrimiçi' : 'Çevrimdışı';
+  }
+
+  function renderQueue() {
+    const queue = Store.getQueue();
+    $('#queue-card').hidden = queue.length === 0;
+    if (!queue.length) return;
+    const online = Sync.isOnline();
+    $('#queue-count').textContent = String(queue.length);
+    $('#queue-hint').textContent = online
+      ? 'Bağlantı var — kayıtları bota gönderebilirsiniz.'
+      : 'Bağlantı bekleniyor. Kayıtlar bu cihazda güvende.';
+    $('[data-queue="send"]').disabled = !online;
+
+    const list = $('#queue-list');
+    list.replaceChildren(
+      ...queue.map((item) => {
+        const data = item.data || {};
+        const dutyCount = Array.isArray(data.duties) ? data.duties.length : 1;
+        const li = document.createElement('li');
+        const info = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = `${formatDateTR(data.duty_date)} · ${dutyCount} görev · ${data.personnel || '—'} kişi`;
+        const saved = document.createElement('small');
+        const when = new Date(item.timestamp || item.id);
+        saved.textContent = Number.isNaN(when.getTime())
+          ? 'Kaydedildi'
+          : `Kaydedildi ${pad(when.getDate())}.${pad(when.getMonth() + 1)} ${pad(when.getHours())}:${pad(when.getMinutes())}`;
+        info.append(title, saved);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'icon-btn';
+        remove.textContent = '✕';
+        remove.setAttribute('aria-label', 'Kaydı sil');
+        remove.addEventListener('click', () => {
+          Store.removeFromQueue([item.id]);
+          haptic('warning');
+          renderQueue();
+        });
+        li.append(info, remove);
+        return li;
+      })
+    );
+  }
+
+  // ---------- Gönderim ----------
+  function validate() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(state.dutyDate)) return { message: 'Görev tarihini seçin.' };
+    for (let i = 0; i < state.duties.length; i += 1) {
+      const duty = state.duties[i];
+      if (C.parseTime(duty.departure) === null || C.parseTime(duty.arrival) === null) {
+        return { message: `${i + 1}. görev için Avara ve Aborda saatlerini girin.`, id: duty.id };
+      }
+      if (C.durationMinutes(duty.departure, duty.arrival) === 0) {
+        return { message: `${i + 1}. görevde Avara ve Aborda saatleri aynı. Görev süresi 0 olamaz.`, id: duty.id };
+      }
+    }
+    return null;
+  }
+
+  function buildPayload() {
+    return {
+      v: 2,
+      duties: state.duties.map((duty) => ({
+        departure: duty.departure,
+        arrival: duty.arrival,
+        fuel_liters: duty.fuel_liters,
+      })),
+      personnel: state.personnel,
+      fuel_type: state.fuelType,
+      duty_date: state.dutyDate,
+    };
+  }
+
+  function sendFailed(backupQueue) {
+    Store.replaceQueue(backupQueue);
+    renderQueue();
+    haptic('error');
+    showAlert('Veri bota gönderilemedi.\n\nMini App\'i sohbetin altındaki 📱 Mini App Aç klavye butonundan açtığınızdan emin olun.');
+  }
+
+  function saveOffline(payload) {
+    if (Store.enqueue(payload)) {
+      haptic('success');
+      toast('💾 Çevrimdışı kaydedildi. Bağlantı gelince bekleyenlerden gönderin.', 'ok');
+      renderQueue();
+    } else {
+      haptic('error');
+      showAlert('Kayıt yapılamadı: cihaz depolaması kullanılamıyor.');
+    }
+  }
+
+  function submit() {
+    const error = validate();
+    if (error) {
+      haptic('error');
+      if (error.id) flagDuty(error.id);
+      showAlert(error.message);
       return;
     }
 
-    // Set Telegram header color
-    if (tg.setHeaderColor) {
-      tg.setHeaderColor('secondary_bg_color');
+    const payload = buildPayload();
+    Store.saveLastSubmitted(payload);
+    saveDraft();
+
+    if (!Sync.isOnline()) {
+      saveOffline(payload);
+      return;
     }
 
-    // MainButton setup
-    if (tg.MainButton) {
-      tg.MainButton.setText('✅ GÖREVLERİ HESAPLA');
-      tg.MainButton.show();
-      tg.MainButton.onClick(submitData);
-      
-      // Hide HTML fallback button since we have the native MainButton
-      const submitContainer = document.querySelector('.submit-container');
-      if (submitContainer) submitContainer.style.display = 'none';
-    }
-  }
-
-  // Set default date
-  dutyDateInput.value = getTodayString();
-
-  // Load preferences or defaults
-  loadPreferences();
-  renderDuties();
-
-  // Add duty button listener
-  if (btnAddDuty) {
-    btnAddDuty.addEventListener('click', addDuty);
-  }
-
-  // Fuel type changes
-  document.querySelectorAll('input[name="fuel_type"]').forEach(r => {
-    r.addEventListener('change', () => {
-      haptic('selection');
-      renderDuties();
-      savePreferences();
-    });
-  });
-
-  // Quick Chips Listeners
-  document.getElementById('btn-last-calc').addEventListener('click', () => {
-    haptic('medium');
-    loadPreferences();
-    renderDuties();
-  });
-
-  document.getElementById('btn-sample-calc').addEventListener('click', () => {
-    haptic('medium');
-    duties = [{ id: 1, departure: '09:35', arrival: '19:25', fuel_liters: 750 }];
-    nextDutyId = 1;
-    document.getElementById('personnel').value = '4';
-    document.getElementById('fuel-diesel').checked = true;
-    renderDuties();
-    savePreferences();
-  });
-
-  document.getElementById('btn-now-calc').addEventListener('click', () => {
-    haptic('medium');
-    const now = new Date();
-    const fourHoursAgo = new Date(now.getTime() - (4 * 60 * 60 * 1000));
-    duties = [{
-      id: 1,
-      departure: getCurrentTimeString(fourHoursAgo),
-      arrival: getCurrentTimeString(now),
-      fuel_liters: 500
-    }];
-    nextDutyId = 1;
-    dutyDateInput.value = getTodayString();
-    renderDuties();
-    savePreferences();
-  });
-
-  // Submit button listener (for browsers/desktop)
-  if (btnSubmit) {
-    btnSubmit.addEventListener('click', submitData);
-  }
-});
-
-// Toplam maliyet özeti kartını güncelle
-function updateCostSummary() {
-  const container = document.getElementById('cost-summary-container');
-  if (!container || duties.length === 0) {
-    container.style.display = 'none';
-    return;
-  }
-
-  // Toplam hesapla
-  let totalMinutes = 0;
-  let totalFuel = 0;
-
-  duties.forEach(duty => {
-    const mins = getDurationMinutes(duty.departure, duty.arrival);
-    totalMinutes += mins;
-    totalFuel += parseFloat(duty.fuel_liters) || 0;
-  });
-
-  const totalHours = (totalMinutes / 60).toFixed(2);
-  const estimatedCost = Math.round(totalHours * 2500); // Tahmini ortalama ₺2500/saat
-  const fuelPerHour = (totalFuel / totalHours).toFixed(2);
-
-  const hoursStr = Math.floor(totalMinutes / 60);
-  const minsStr = String(totalMinutes % 60).padStart(2, '0');
-
-  container.innerHTML = `
-    <div class="cost-summary">
-      <h3>📊 Görev Özeti</h3>
-      <div class="total-amount">~₺${formatNumber(estimatedCost)}</div>
-      <div class="cost-breakdown">
-        <div class="cost-breakdown-item">
-          <span class="label">Toplam Süre</span>
-          <span class="value">${hoursStr}:${minsStr}</span>
-        </div>
-        <div class="cost-breakdown-item">
-          <span class="label">Yakıt Toplam</span>
-          <span class="value">${formatNumber(totalFuel)}L</span>
-        </div>
-        <div class="cost-breakdown-item">
-          <span class="label">Verimlilik</span>
-          <span class="value">${fuelPerHour}L/sa</span>
-        </div>
-      </div>
-      <button type="button" class="share-button" onclick="copySummary()">
-        📋 Özeti Kopyala
-      </button>
-    </div>
-  `;
-
-  container.style.display = 'block';
-}
-
-// Özeti panoya kopyala
-function copySummary() {
-  const summary = [];
-  const personnel = parseInt(document.getElementById('personnel').value, 10) || 4;
-  const dutyDate = document.getElementById('duty-date').value || getTodayString();
-  const fuel_type = document.querySelector('input[name="fuel_type"]:checked')?.value || 'diesel';
-
-  summary.push(`📋 Görev Özeti`);
-  summary.push(`📅 Tarih: ${dutyDate}`);
-  summary.push(`👥 Personel: ${personnel}`);
-  summary.push(`🛢 Yakıt: ${fuel_type === 'gasoline' ? 'Benzin' : 'Dizel'}`);
-  summary.push('');
-
-  duties.forEach((duty, idx) => {
-    const mins = getDurationMinutes(duty.departure, duty.arrival);
-    const hours = (mins / 60).toFixed(2);
-    const fuel = parseFloat(duty.fuel_liters) || 0;
-    const fuelPerHour = (fuel / hours).toFixed(2);
-    summary.push(`Görev ${idx + 1}:`);
-    summary.push(`  ⏱ ${duty.departure} - ${duty.arrival} (${hours} saat)`);
-    summary.push(`  ⛽ ${fuel}L (~${fuelPerHour}L/saat)`);
-  });
-
-  const text = summary.join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
+    if (!IN_TELEGRAM) {
       haptic('success');
-      if (tg?.showAlert) {
-        tg.showAlert('✓ Özet panoya kopyalandı!');
-      } else {
-        alert('✓ Özet panoya kopyalandı!');
+      showAlert(`Tarayıcı önizleme modu.\n\nTelegram içinde bu veri bota gönderilir:\n\n${JSON.stringify(payload, null, 2)}`);
+      return;
+    }
+
+    // Bekleyen çevrimdışı kayıtlar varsa ve sığıyorsa aynı gönderime eklenir.
+    const backup = Store.getQueue();
+    let outgoing = payload;
+    if (backup.length) {
+      const candidates = backup.concat({ id: 'current', data: payload });
+      if (Sync.takeSendable(candidates).length === candidates.length) {
+        outgoing = Sync.buildBatchPayload(candidates);
+        Store.clearQueue();
       }
-    }).catch(() => {
-      if (tg?.showAlert) {
-        tg.showAlert('Kopyalama başarısız oldu.');
-      }
+    }
+    haptic('success');
+    Sync.sendToBot(outgoing, () => sendFailed(backup));
+  }
+
+  function sendQueue() {
+    if (!Sync.isOnline()) {
+      toast('Bağlantı yok. Kayıtlar bekletiliyor.', 'warn');
+      return;
+    }
+    if (!IN_TELEGRAM) {
+      showAlert('Bekleyen kayıtlar yalnızca Telegram içinde bota gönderilebilir.');
+      return;
+    }
+    const backup = Store.getQueue();
+    const items = Sync.takeSendable(backup);
+    if (!items.length) {
+      showAlert('Kayıt tek gönderim sınırını aşıyor.');
+      return;
+    }
+    Store.removeFromQueue(items.map((item) => item.id));
+    haptic('success');
+    Sync.sendToBot(Sync.buildBatchPayload(items), () => sendFailed(backup));
+  }
+
+  function summaryText() {
+    const sum = totals();
+    const lines = [
+      '📋 Görev Özeti',
+      `📅 ${formatDateTR(state.dutyDate)} · 👥 ${state.personnel} kişi · 🛢 ${FUEL_LABELS[state.fuelType]}`,
+      '',
+    ];
+    state.duties.forEach((duty, index) => {
+      const metrics = dutyMetrics(duty);
+      const cost = metrics.cost ? ` · ≈ ${money(metrics.cost.total)}` : '';
+      lines.push(
+        `${index + 1}. Görev: ${duty.departure}–${duty.arrival} (${C.formatDuration(metrics.minutes)}) · ${C.formatNumber(duty.fuel_liters)} L${cost}`
+      );
     });
-  } else {
-    haptic('warning');
-    if (tg?.showAlert) {
-      tg.showAlert(text);
-    } else {
-      alert(text);
+    lines.push('', `⏱ Toplam süre: ${C.formatDuration(sum.minutes)} · ⛽ ${C.formatNumber(sum.liters)} L`);
+    if (hasPricing()) lines.push(`💰 Tahmini toplam: ${money(sum.total)}`);
+    return lines.join('\n');
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch (copyErr) {
+        ok = false;
+      }
+      area.remove();
+      return ok;
     }
   }
-}
+
+  // ---------- Olaylar ----------
+  function applyPreset(kind) {
+    if (kind === 'last') {
+      const last = Store.loadLastSubmitted();
+      if (!last) {
+        toast('Henüz gönderilmiş bir görev yok.', 'warn');
+        return;
+      }
+      applySnapshot(last);
+      if (last.duty_date) state.dutyDate = last.duty_date;
+      toast('Son gönderilen görev yüklendi.', 'ok');
+    } else if (kind === 'recent') {
+      const now = new Date();
+      const fuel = state.duties[0] ? state.duties[0].fuel_liters : 500;
+      state.nextId = 1;
+      state.duties = [
+        makeDuty({
+          departure: C.formatTime(minutesOfDay(now) - 240),
+          arrival: C.formatTime(minutesOfDay(now)),
+          fuel_liters: fuel,
+        }),
+      ];
+      state.dutyDate = todayISO(now);
+    } else if (kind === 'sample') {
+      applySnapshot({ personnel: 4, fuel_type: 'diesel', duties: [DEFAULT_DUTY] });
+    }
+    haptic('medium');
+    syncStaticInputs();
+    renderMarket();
+    renderDuties();
+    saveDraft();
+  }
+
+  function syncStaticInputs() {
+    $('#duty-date').value = state.dutyDate;
+    $('#personnel').value = String(state.personnel);
+    const radio = $(`input[name="fuel_type"][value="${state.fuelType}"]`);
+    if (radio) radio.checked = true;
+  }
+
+  function setPersonnel(value) {
+    state.personnel = sanitizePersonnel(value);
+    if (document.activeElement !== $('#personnel')) $('#personnel').value = String(state.personnel);
+    state.duties.forEach(refreshDuty);
+    refreshSummary();
+    saveDraft();
+  }
+
+  function bindEvents() {
+    const duties = $('#duties');
+
+    duties.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const card = button.closest('.duty');
+      const duty = card && findDuty(card.dataset.id);
+      if (!duty) return;
+      const { action, field } = button.dataset;
+      const delta = Number(button.dataset.delta);
+
+      if (action === 'remove') {
+        removeDuty(duty.id);
+        return;
+      }
+      if (action === 'nudge') {
+        const current = C.parseTime(duty[field]);
+        duty[field] = C.formatTime((current === null ? 720 : current) + delta);
+        haptic('selection');
+      } else if (action === 'now') {
+        duty[field] = C.formatTime(minutesOfDay(new Date()));
+        haptic('medium');
+      } else if (action === 'fuel') {
+        duty.fuel_liters = sanitizeFuel(duty.fuel_liters + delta);
+        haptic('selection');
+      }
+      commitDuty(duty);
+    });
+
+    duties.addEventListener('input', (event) => {
+      const input = event.target.closest('[data-field]');
+      if (!input) return;
+      const duty = findDuty(input.closest('.duty').dataset.id);
+      if (!duty) return;
+      if (input.dataset.field === 'fuel_liters') {
+        if (input.value === '') return;
+        duty.fuel_liters = sanitizeFuel(input.value);
+      } else {
+        const value = C.sanitizeTime(input.value, null);
+        if (!value) return;
+        duty[input.dataset.field] = value;
+      }
+      commitDuty(duty);
+    });
+
+    duties.addEventListener(
+      'blur',
+      (event) => {
+        const input = event.target.closest('[data-field]');
+        if (!input) return;
+        const duty = findDuty(input.closest('.duty').dataset.id);
+        if (duty) refreshDuty(duty); // boş/geçersiz girişi son geçerli değere döndür
+      },
+      true
+    );
+
+    $('#btn-add-duty').addEventListener('click', addDuty);
+    $('#btn-submit').addEventListener('click', submit);
+
+    $('#duty-date').addEventListener('change', (event) => {
+      state.dutyDate = event.target.value || todayISO();
+    });
+
+    $$('input[name="fuel_type"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        state.fuelType = radio.value === 'gasoline' ? 'gasoline' : 'diesel';
+        haptic('selection');
+        renderMarket();
+        state.duties.forEach(refreshDuty);
+        refreshSummary();
+        saveDraft();
+      });
+    });
+
+    $$('[data-personnel-delta]').forEach((button) => {
+      button.addEventListener('click', () => {
+        haptic('selection');
+        setPersonnel(state.personnel + Number(button.dataset.personnelDelta));
+      });
+    });
+    $$('#personnel-presets .pill').forEach((pill) => {
+      pill.addEventListener('click', () => {
+        haptic('medium');
+        setPersonnel(pill.dataset.personnel);
+      });
+    });
+    const personnelInput = $('#personnel');
+    personnelInput.addEventListener('input', () => {
+      if (personnelInput.value !== '') setPersonnel(personnelInput.value);
+    });
+    personnelInput.addEventListener('blur', () => {
+      personnelInput.value = String(state.personnel);
+    });
+
+    $$('[data-preset]').forEach((chip) => {
+      chip.addEventListener('click', () => applyPreset(chip.dataset.preset));
+    });
+
+    $('[data-queue="send"]').addEventListener('click', sendQueue);
+    $('[data-queue="clear"]').addEventListener('click', () => {
+      confirmAction('Bekleyen tüm kayıtlar silinsin mi?', () => {
+        Store.clearQueue();
+        haptic('warning');
+        renderQueue();
+      });
+    });
+
+    $('#btn-copy').addEventListener('click', async () => {
+      if (await copyText(summaryText())) {
+        haptic('success');
+        toast('📋 Özet panoya kopyalandı.', 'ok');
+      } else {
+        haptic('warning');
+        showAlert(summaryText());
+      }
+    });
+
+    Sync.onChange((online) => {
+      renderNet();
+      renderQueue();
+      refreshSummary();
+      const pending = Store.getQueue().length;
+      if (online && pending) toast(`Bağlantı geri geldi. ${pending} bekleyen kayıt gönderilebilir.`, 'ok');
+      else if (!online) toast('Çevrimdışısınız. Hesaplamalar cihazda saklanacak.', 'warn');
+    });
+  }
+
+  // ---------- Başlatma ----------
+  function applyTheme() {
+    if (IN_TELEGRAM) document.documentElement.dataset.theme = tg.colorScheme === 'dark' ? 'dark' : 'light';
+  }
+
+  function renderWrongLaunch() {
+    $('#app').innerHTML = `
+      <section class="card shield">
+        <div class="shield-icon" aria-hidden="true">📱</div>
+        <h2>Klavye butonundan açın</h2>
+        <p>Telegram, Mini App'in bota veri gönderebilmesi için uygulamanın sohbetin altındaki <b>klavye butonundan</b> açılmasını zorunlu tutar.</p>
+        <ol>
+          <li>Bu pencereyi kapatın.</li>
+          <li>Sohbete <b>/start</b> yazın.</li>
+          <li>Klavye alanındaki <b>📱 Mini App Aç</b> butonuna dokunun.</li>
+        </ol>
+        <button type="button" class="btn-primary" id="shield-close">Pencereyi kapat</button>
+      </section>`;
+    if (tg.MainButton) tg.MainButton.hide();
+    $('#shield-close').addEventListener('click', () => tg.close());
+  }
+
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator) || !/^https?:$/.test(window.location.protocol)) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+        console.warn('Service Worker kaydedilemedi:', err);
+      });
+    });
+  }
+
+  function init() {
+    if (IN_TELEGRAM) {
+      tg.ready();
+      tg.expand();
+      applyTheme();
+      if (tg.onEvent) tg.onEvent('themeChanged', applyTheme);
+      // initData yalnızca menü/inline butonundan açılışta dolu gelir; bu modda sendData çalışmaz.
+      if (tg.initData) {
+        renderWrongLaunch();
+        return;
+      }
+      try {
+        tg.setHeaderColor('secondary_bg_color');
+        tg.setBackgroundColor('secondary_bg_color');
+      } catch (err) {
+        // Eski istemci sürümleri renk ayarını desteklemez.
+      }
+      if (tg.MainButton) {
+        tg.MainButton.onClick(submit);
+        tg.MainButton.show();
+        $('#submit-fallback').hidden = true;
+      }
+    }
+
+    if (!applySnapshot(Store.loadDraft())) applySnapshot({ duties: [DEFAULT_DUTY] });
+    syncStaticInputs();
+    renderMarket();
+    renderNet();
+    renderDuties();
+    renderQueue();
+    bindEvents();
+    registerServiceWorker();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
