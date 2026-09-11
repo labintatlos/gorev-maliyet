@@ -145,7 +145,11 @@ class Page:
         ])
 
     async def shot(self, path, max_height=3600):
+        await self.js("window.scrollTo({top: 0, left: 0, behavior: 'instant'}); true")
         await asyncio.sleep(0.35)
+        overflow = await self.js("document.documentElement.scrollWidth > innerWidth + 1")
+        if overflow:
+            raise AssertionError(f'Yatay taşma: {path.name}')
         size = (await self.send('Page.getLayoutMetrics'))['cssContentSize']
         clip = {'x': 0, 'y': 0, 'width': size['width'], 'height': min(size['height'], max_height), 'scale': 1}
         data = await self.send('Page.captureScreenshot', format='png', clip=clip, captureBeyondViewport=True)
@@ -239,6 +243,12 @@ async def browse(out, failures):
         await step('karanlık görünüm', page.wait_for(
             "document.documentElement.dataset.theme === 'dark' && document.querySelectorAll('.duty').length > 0"))
         await page.shot(out / '13-hesapla-karanlik-390.png')
+
+        for width in (320, 768, 1024):
+            await page.viewport(width, 900, width < 500)
+            await page.shot(out / f'14-hesapla-karanlik-{width}.png')
+        await page.viewport(1280, 900, False)
+        await page.shot(out / '15-hesapla-karanlik-1280.png')
 
         await asyncio.sleep(0.5)
         problems = []

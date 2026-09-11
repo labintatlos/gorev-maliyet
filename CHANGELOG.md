@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.1.0
+
+- Giriş ekranı, üst menü ve sayfa yüzeyleri yenilendi; denizcilik renkleri açık ve koyu görünümde korundu.
+- Maliyet özeti lacivert kart, belirgin toplam ve daha okunur dağılımla öne çıkarıldı. Piyasa verileri sade bir bilgi bandında toplandı.
+- Hesaplama formu açıklamalı “Görev bilgileri” ve “Seyir ve yakıt” bölümlerine ayrıldı; saat alanları büyütüldü, hızlı doldurma düğmeleri telefonda satıra sığacak şekilde düzenlendi.
+- Geçmiş, istatistik ve sonuç raporlarında tutarların vurgusu, kart aralıkları ve bölüm ayrımları iyileştirildi. Personel ve yakıt sayı alanlarına klavye odağı eklendi.
+- Tabletlerde menü taşması düzeltildi; 900 piksel ve altında alt gezinme kullanılır.
+- Tarayıcı kontrolü yatay taşmayı denetler; 320, 768 ve 1024 piksel ile karanlık masaüstü görüntüleri eklendi. Ekran görüntülerinden önce sayfa başına dönülür.
+- `python tools/smoke_test.py` ve `python tools/browser_check.py yerel/ui-after`: `errors: 0`. Hesaplama formülleri değişmedi; referans toplam ₺53.953,82 korundu.
+
 ## 4.0.2
 
 - Görsel/arayüz cilası: sekme değişince sayfa içeriği yumuşak yükselerek belirir, bildirim ve bekleme katmanı animasyonlu açılır, düğmelerde masaüstünde ince bir hover gölgesi var.

@@ -18,8 +18,9 @@
 <section id="auth" class="auth" hidden>
   <aside class="auth-intro">
     <span class="eyebrow">GÖREV MALİYET · HESAPLAYICI</span>
-    <h2>Görev süresi ve maliyeti.<br>Saniyeler içinde.</h2>
-    <p>Avara, aborda, yakıt ve personel bilgileriyle<br>tek ekranda hızlı ve doğru hesap.</p>
+    <div class="intro-mark" aria-hidden="true"><img src="static/icon.svg" alt="" width="72" height="72"></div>
+    <h2>Göreviniz tamam.<br>Hesabı burada.</h2>
+    <p>Süreyi, yakıtı ve personeli girin.<br>Maliyeti görün, GÖRRAP satırınızı hazırlayın.</p>
     <div class="intro-features"><span>01 <b>Canlı maliyet önizlemesi</b></span><span>02 <b>Otomatik Euro ve akaryakıt fiyatı</b></span><span>03 <b>Geçmiş, istatistik ve CSV çıktısı</b></span></div>
     <span class="intro-footer">GÖREV MALİYET HESAPLAYICI</span>
   </aside>
@@ -131,7 +132,7 @@
     <section class="page" id="page-hesapla" data-page="hesapla" hidden>
       <div id="calc-view">
         <div class="page-head">
-          <div><span class="eyebrow">Görev maliyeti</span><h1>Yeni hesaplama</h1></div>
+          <div><span class="eyebrow">Süre · Maliyet · GÖRRAP</span><h1>Yeni hesaplama</h1><p class="page-sub">Görev bilgilerini girin, maliyeti anında görün.</p></div>
           <span class="net-pill" id="net-pill" data-state="online"><i aria-hidden="true"></i><span id="net-label">Çevrimiçi</span></span>
         </div>
 
@@ -162,13 +163,14 @@
         <div class="calc-layout">
           <div class="calc-main">
             <div class="chips" aria-label="Hızlı doldurma">
-              <button type="button" class="chip" data-preset="last">↩️ Son hesaplama</button>
-              <button type="button" class="chip" data-preset="recent">⚡ Son 4 saat</button>
-              <button type="button" class="chip" data-preset="sample">🧪 Örnek</button>
+              <span class="quick-label">Hızlı doldur</span>
+              <button type="button" class="chip" data-preset="last">↶ Son hesaplama</button>
+              <button type="button" class="chip" data-preset="recent">Son 4 saat</button>
+              <button type="button" class="chip" data-preset="sample">Örnek</button>
             </div>
 
             <section class="card">
-              <h2 class="card-title">Görev bilgileri</h2>
+              <div class="section-heading"><span class="section-symbol" aria-hidden="true">01</span><div><h2 class="card-title">Görev bilgileri</h2><p>Tüm görevler için ortak bilgiler</p></div></div>
               <div class="grid-2">
                 <label class="field">
                   <span class="field-label">Görev tarihi</span>
@@ -205,6 +207,7 @@
               </div>
             </section>
 
+            <div class="section-heading duty-section-heading"><span class="section-symbol" aria-hidden="true">02</span><div><h2 class="card-title">Seyir ve yakıt</h2><p>Her görevin saatini ve tüketimini ekleyin</p></div></div>
             <div class="duties" id="duties"></div>
             <button type="button" class="add-duty" id="btn-add-duty">＋ Görev ekle</button>
           </div>
